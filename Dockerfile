@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.21-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 WORKDIR /app
 
@@ -13,8 +13,8 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build binary
-RUN CGO_ENABLED=1 GOOS=linux go build -o /app/bin/task-queue-mcp ./cmd/server
+# Build binary (CGO_ENABLED=0 for static build, modernc.org/sqlite is pure Go)
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /app/bin/task-queue-mcp ./cmd/server
 
 # Final stage
 FROM alpine:3.19

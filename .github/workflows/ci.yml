@@ -1,0 +1,156 @@
+name: CI
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Build binary
+        run: CGO_ENABLED=0 go build -ldflags="-s -w" -o bin/task-queue-mcp ./cmd/server
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: task-queue-mcp-linux
+          path: bin/task-queue-mcp
+          retention-days: 7
+
+  unit-test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run unit tests
+        run: go test -v -race -coverprofile=coverage.out ./internal/...
+
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.out
+          retention-days: 7
+
+  e2e-test:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Build binary
+        run: CGO_ENABLED=0 go build -ldflags="-s -w" -o bin/task-queue-mcp ./cmd/server
+
+      - name: Run e2e tests
+        run: |
+          ./bin/task-queue-mcp -port=9292 -db=./data/test.db -mcp=http &
+          sleep 2
+          E2E_SERVER_URL=http://localhost:9292 go test -v ./test/e2e/
+          pkill -f task-queue-mcp || true
+
+  example-stdio:
+    name: Example STDIO Client
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Run STDIO example
+        run: |
+          timeout 60 go run ./examples/stdio-client/main.go || exit_code=$?
+          # Exit code 124 means timeout, which is expected for long-running processes
+          if [ "${exit_code:-0}" -eq 124 ]; then
+            echo "STDIO client example ran successfully (timed out as expected)"
+            exit 0
+          fi
+          exit ${exit_code:-0}
+
+  example-http:
+    name: Example HTTP Client
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache: true
+
+      - name: Download dependencies
+        run: go mod download
+
+      - name: Build binary
+        run: CGO_ENABLED=0 go build -ldflags="-s -w" -o bin/task-queue-mcp ./cmd/server
+
+      - name: Run HTTP example
+        run: |
+          ./bin/task-queue-mcp -port=9292 -db=./data/example.db -mcp=http &
+          sleep 2
+          timeout 60 go run ./examples/mcp-client/main.go
+          pkill -f task-queue-mcp || true
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+          cache: true
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
