@@ -5,6 +5,8 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	"task-queue-mcp/internal/queue"
@@ -19,6 +21,14 @@ type SQLiteStorage struct {
 
 // NewSQLiteStorage creates a new SQLite storage
 func NewSQLiteStorage(dbPath string) (*SQLiteStorage, error) {
+	// Ensure parent directory exists
+	dir := filepath.Dir(dbPath)
+	if dir != "" && dir != "." {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return nil, fmt.Errorf("failed to create database directory: %w", err)
+		}
+	}
+
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
