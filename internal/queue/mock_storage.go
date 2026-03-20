@@ -42,7 +42,7 @@ func (m *MockStorage) GetQueue(ctx context.Context, id int64) (*Queue, error) {
 }
 
 func (m *MockStorage) ListQueues(ctx context.Context) ([]*Queue, error) {
-	var queues []*Queue
+	queues := make([]*Queue, 0)
 	for _, q := range m.queues {
 		queues = append(queues, q)
 	}
@@ -111,7 +111,7 @@ func (m *MockStorage) GetTask(ctx context.Context, id int64) (*Task, error) {
 }
 
 func (m *MockStorage) ListTasks(ctx context.Context, queueID int64, status *TaskStatus) ([]*Task, error) {
-	var tasks []*Task
+	tasks := make([]*Task, 0)
 	for _, t := range m.tasks {
 		if t.QueueID == queueID {
 			if status == nil || t.Status == *status {

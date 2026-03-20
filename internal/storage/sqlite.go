@@ -93,7 +93,7 @@ func (s *SQLiteStorage) ListQueues(ctx context.Context) ([]*queue.Queue, error) 
 	}
 	defer rows.Close()
 
-	var queues []*queue.Queue
+	queues := make([]*queue.Queue, 0)
 	for rows.Next() {
 		q := &queue.Queue{}
 		if err := rows.Scan(&q.ID, &q.Name, &q.Description, &q.CreatedAt, &q.UpdatedAt); err != nil {
@@ -244,7 +244,7 @@ func (s *SQLiteStorage) ListTasks(ctx context.Context, queueID int64, status *qu
 	}
 	defer rows.Close()
 
-	var tasks []*queue.Task
+	tasks := make([]*queue.Task, 0)
 	for rows.Next() {
 		t := &queue.Task{}
 		var startedAt, finishedAt sql.NullTime
