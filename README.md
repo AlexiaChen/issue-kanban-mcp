@@ -29,10 +29,33 @@ make e2e
 
 ## Installation
 
+### Docker (Recommended)
+
+Pull the image from GitHub Container Registry:
+
+```bash
+docker pull ghcr.io/alexiachen/task-queue-mcp:latest
+```
+
+Run with HTTP mode (Web UI + REST API + MCP SSE):
+
+```bash
+docker run -d \
+  --name task-queue-mcp \
+  -p 9292:9292 \
+  -v task-queue-data:/app/data \
+  ghcr.io/alexiachen/task-queue-mcp:latest
+```
+
+Access:
+- **Web UI**: http://localhost:9292
+- **REST API**: http://localhost:9292/api/...
+- **MCP SSE**: http://localhost:9292/sse
+
 ### From Source
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/alexiachen/task-queue-mcp.git
 cd task-queue-mcp
 make build
 ```
@@ -55,6 +78,18 @@ The binary is statically compiled with no dynamic dependencies:
 
 ## MCP Integration
 
+### Local STDIO Mode
+
+For local MCP clients (Claude Desktop, Copilot CLI, etc.), use STDIO mode:
+
+```bash
+# Build the binary
+make build
+
+# Run in STDIO mode
+./bin/task-queue-mcp -mcp=stdio -db=/path/to/tasks.db
+```
+
 ### Claude Desktop Configuration
 
 Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_desktop_config.json` on macOS):
@@ -69,6 +104,53 @@ Add to your Claude Desktop config (`~/Library/Application Support/Claude/claude_
   }
 }
 ```
+
+### GitHub Copilot CLI Configuration
+
+Copilot CLI supports MCP servers via `~/.copilot/mcp-config.json`.
+
+#### Option 1: STDIO Mode (Local Binary)
+
+```json
+{
+  "servers": {
+    "task-queue": {
+      "type": "stdio",
+      "command": "/path/to/task-queue-mcp",
+      "args": ["-mcp=stdio", "-db=/path/to/tasks.db"],
+      "env": {},
+      "tools": ["*"]
+    }
+  }
+}
+```
+
+#### Option 2: HTTP/SSE Mode (Docker or Remote Server)
+
+```json
+{
+  "servers": {
+    "task-queue": {
+      "type": "sse",
+      "url": "http://localhost:9292/sse",
+      "headers": {},
+      "tools": ["*"]
+    }
+  }
+}
+```
+
+#### Interactive Setup (Recommended)
+
+Copilot CLI also provides an interactive command to add MCP servers:
+
+```bash
+copilot mcp add
+```
+
+This will guide you through the configuration process interactively.
+
+For more details, see [Copilot CLI MCP Documentation](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers).
 
 ### MCP Tools
 
