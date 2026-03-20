@@ -4,8 +4,10 @@
 // and interact with the Task Queue MCP Server via SSE transport.
 //
 // Run:
-//   1. Start the server: go run ./cmd/server -port=9292 -mcp=http
+//   1. Start the server: go run ./cmd/server -port=9292 -mcp=http -readonly=false
 //   2. Run this client: go run ./examples/mcp-client/main.go
+//
+// Note: -readonly=false is needed to access admin tools (queue_create, task_create, etc.)
 //
 // The client demonstrates:
 //   - Connecting to MCP server via SSE transport

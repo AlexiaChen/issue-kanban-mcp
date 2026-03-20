@@ -132,7 +132,7 @@ jobs:
 
       - name: Run HTTP example
         run: |
-          ./bin/task-queue-mcp -db=./data/example.db &
+          ./bin/task-queue-mcp -db=./data/example.db -readonly=false &
           sleep 2
           timeout 60 go run ./examples/mcp-client/main.go
           pkill -f task-queue-mcp || true

@@ -30,6 +30,7 @@ func main() {
 
 	// Create STDIO client by spawning the server
 	// In production, the path would be to the compiled binary
+	// Note: -readonly=false is needed to access admin tools (queue_create, task_create, etc.)
 	c, err := client.NewStdioMCPClient(
 		"go",           // command
 		[]string{},     // environment variables
@@ -37,6 +38,7 @@ func main() {
 		"./cmd/server",
 		"-mcp=stdio",
 		"-db=./data/example.db",
+		"-readonly=false",
 	)
 	if err != nil {
 		log.Fatalf("Failed to create STDIO client: %v", err)
