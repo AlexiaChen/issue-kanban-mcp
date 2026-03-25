@@ -49,6 +49,30 @@ This project ships three binaries:
 
 Build all: `make build-all`
 
+### TUI Key Bindings (task list)
+
+| Key | Action |
+|-----|--------|
+| `j`/`k` | Navigate |
+| `Enter` | Open queue |
+| `n` | New task |
+| `e` | Edit task (pending only) |
+| `p` | Prioritize (move to front) |
+| `d` | Delete |
+| `R` | Refresh |
+| `Esc`/`q` | Back / quit |
+
+### CLI Commands
+
+```bash
+task-queue-cli tasks list <queue-id> [--status pending|doing|finished]
+task-queue-cli tasks get <id>
+task-queue-cli tasks create <queue-id> --title "..." [--desc "..."] [--priority N]
+task-queue-cli tasks edit <id> [--title "..."] [--desc "..."] [--priority N]
+task-queue-cli tasks delete <id> [--yes]
+task-queue-cli tasks prioritize <id>
+```
+
 ## Agent Behavior
 
 When instructed to process a task queue, the agent MUST:
@@ -167,7 +191,9 @@ The following tools are available to AI agents in readonly mode:
 |------|-------------|------------|
 | `queue_list` | List all queues | (none) |
 | `task_list` | List tasks in queue | `queue_id`, `status?` |
-| `task_update` | Update task status | `task_id`, `status` |
+| `task_update` | Update task **status only** | `task_id`, `status` |
+
+> **Security boundary**: `task_update` deliberately only accepts a `status` field. AI agents **cannot** modify a task's title, description, or priority through MCP — those changes must go through the Web UI, TUI, or CLI (which call `PUT /api/tasks/{id}`). This prevents unintended content mutation by AI agents.
 
 > **Admin Tools**: `queue_create`, `queue_delete`, `task_create`, `task_delete`, `task_prioritize` are only available when readonly mode is disabled (`-readonly=false`). Use the Web UI or REST API for queue/task management.
 

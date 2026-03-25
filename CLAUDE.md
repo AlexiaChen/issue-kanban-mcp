@@ -173,7 +173,7 @@ make build-cli
 ## Testing
 
 ```bash
-# Unit tests
+# Unit tests (includes CLI tests)
 make test
 
 # Test with coverage
@@ -186,6 +186,14 @@ make e2e
 make run &
 make e2e-quick
 ```
+
+### CLI Testing Strategy
+
+CLI tests live in `cmd/cli/main_test.go` and use `net/http/httptest.NewServer` to spin up a mock REST API server for each test case. This means:
+- Tests run without a real server or database
+- Every subcommand (`queues list/create/delete/stats`, `tasks list/get/create/edit/delete/prioritize`) has a dedicated test
+- Tests verify both output text and HTTP method/path correctness
+- The `runCmd(t, ts, ...)` helper wires the CLI to the mock server via `--server` flag
 
 ## Static Build
 
