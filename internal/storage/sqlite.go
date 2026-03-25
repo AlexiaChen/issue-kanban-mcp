@@ -264,91 +264,84 @@ func (s *SQLiteStorage) ListTasks(ctx context.Context, queueID int64, status *qu
 	return tasks, nil
 }
 
-// UpdateTask updates a task
+// UpdateTask updates a task's status
 func (s *SQLiteStorage) UpdateTask(ctx context.Context, id int64, input queue.UpdateTaskInput) (*queue.Task, error) {
 	now := time.Now()
 
-	if input.Status != nil {
-		var startedAt, finishedAt interface{}
-		var query string
+	if input.Status == nil {
+		return nil, fmt.Errorf("status is required")
+	}
 
-		switch *input.Status {
-		case queue.StatusDoing:
-			startedAt = now
-			query = `UPDATE tasks SET status = ?, started_at = ?, updated_at = ? WHERE id = ?`
-		case queue.StatusFinished:
-			finishedAt = now
-			if _, err := s.GetTask(ctx, id); err != nil {
-				return nil, err
-			}
-			query = `UPDATE tasks SET status = ?, finished_at = ?, updated_at = ? WHERE id = ?`
-		case queue.StatusPending:
-			query = `UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?`
-		default:
-			return nil, queue.ErrInvalidStatus
-		}
-
-		var result sql.Result
-		var err error
-
-		switch *input.Status {
-		case queue.StatusDoing:
-			result, err = s.db.ExecContext(ctx, query, *input.Status, startedAt, now, id)
-		case queue.StatusFinished:
-			result, err = s.db.ExecContext(ctx, query, *input.Status, finishedAt, now, id)
-		case queue.StatusPending:
-			result, err = s.db.ExecContext(ctx, query, *input.Status, now, id)
-		}
-
+	var query string
+	switch *input.Status {
+	case queue.StatusDoing:
+		query = `UPDATE tasks SET status = ?, started_at = ?, updated_at = ? WHERE id = ?`
+		result, err := s.db.ExecContext(ctx, query, *input.Status, now, now, id)
 		if err != nil {
 			return nil, fmt.Errorf("failed to update task: %w", err)
 		}
-
-		affected, err := result.RowsAffected()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get rows affected: %w", err)
-		}
-		if affected == 0 {
+		if affected, _ := result.RowsAffected(); affected == 0 {
 			return nil, queue.ErrTaskNotFound
 		}
-	}
-
-	// Update editable fields (title, description, priority) — only for pending tasks enforcement
-	// is handled at the manager layer; storage applies blindly.
-	if input.Title != nil || input.Description != nil || input.Priority != nil {
-		setClauses := []string{}
-		args := []interface{}{}
-
-		if input.Title != nil {
-			setClauses = append(setClauses, "title = ?")
-			args = append(args, *input.Title)
-		}
-		if input.Description != nil {
-			setClauses = append(setClauses, "description = ?")
-			args = append(args, *input.Description)
-		}
-		if input.Priority != nil {
-			setClauses = append(setClauses, "priority = ?")
-			args = append(args, *input.Priority)
-		}
-		setClauses = append(setClauses, "updated_at = ?")
-		args = append(args, now)
-		args = append(args, id)
-
-		query := "UPDATE tasks SET " + strings.Join(setClauses, ", ") + " WHERE id = ?"
-		result, err := s.db.ExecContext(ctx, query, args...)
+	case queue.StatusFinished:
+		query = `UPDATE tasks SET status = ?, finished_at = ?, updated_at = ? WHERE id = ?`
+		result, err := s.db.ExecContext(ctx, query, *input.Status, now, now, id)
 		if err != nil {
-			return nil, fmt.Errorf("failed to update task fields: %w", err)
+			return nil, fmt.Errorf("failed to update task: %w", err)
 		}
-		affected, err := result.RowsAffected()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get rows affected: %w", err)
-		}
-		if affected == 0 {
+		if affected, _ := result.RowsAffected(); affected == 0 {
 			return nil, queue.ErrTaskNotFound
 		}
+	case queue.StatusPending:
+		query = `UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?`
+		result, err := s.db.ExecContext(ctx, query, *input.Status, now, id)
+		if err != nil {
+			return nil, fmt.Errorf("failed to update task: %w", err)
+		}
+		if affected, _ := result.RowsAffected(); affected == 0 {
+			return nil, queue.ErrTaskNotFound
+		}
+	default:
+		return nil, queue.ErrInvalidStatus
 	}
 
+	return s.GetTask(ctx, id)
+}
+
+// EditTask updates the content fields (title, description, priority) of a task
+func (s *SQLiteStorage) EditTask(ctx context.Context, id int64, input queue.EditTaskInput) (*queue.Task, error) {
+	now := time.Now()
+
+	setClauses := []string{}
+	args := []interface{}{}
+
+	if input.Title != nil {
+		setClauses = append(setClauses, "title = ?")
+		args = append(args, *input.Title)
+	}
+	if input.Description != nil {
+		setClauses = append(setClauses, "description = ?")
+		args = append(args, *input.Description)
+	}
+	if input.Priority != nil {
+		setClauses = append(setClauses, "priority = ?")
+		args = append(args, *input.Priority)
+	}
+	if len(setClauses) == 0 {
+		return s.GetTask(ctx, id)
+	}
+	setClauses = append(setClauses, "updated_at = ?")
+	args = append(args, now)
+	args = append(args, id)
+
+	query := "UPDATE tasks SET " + strings.Join(setClauses, ", ") + " WHERE id = ?"
+	result, err := s.db.ExecContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to edit task: %w", err)
+	}
+	if affected, _ := result.RowsAffected(); affected == 0 {
+		return nil, queue.ErrTaskNotFound
+	}
 	return s.GetTask(ctx, id)
 }
 

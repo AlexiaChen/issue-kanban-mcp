@@ -32,6 +32,7 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/tasks", h.CreateTask)
 	mux.HandleFunc("GET /api/tasks/{id}", h.GetTask)
 	mux.HandleFunc("PATCH /api/tasks/{id}", h.UpdateTask)
+	mux.HandleFunc("PUT /api/tasks/{id}", h.EditTask)
 	mux.HandleFunc("DELETE /api/tasks/{id}", h.DeleteTask)
 	mux.HandleFunc("POST /api/tasks/{id}/prioritize", h.PrioritizeTask)
 	mux.HandleFunc("POST /api/tasks/{id}/start", h.StartTask)
@@ -223,6 +224,37 @@ func (h *Handler) UpdateTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	task, err := h.manager.UpdateTask(r.Context(), id, input)
+	if err != nil {
+		if err == queue.ErrTaskNotFound {
+			h.writeError(w, http.StatusNotFound, "Task not found")
+			return
+		}
+		if err == queue.ErrInvalidStatus {
+			h.writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		h.writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	h.writeJSON(w, http.StatusOK, task)
+}
+
+// EditTask handles PUT /api/tasks/{id} — updates content fields of a pending task.
+func (h *Handler) EditTask(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		h.writeError(w, http.StatusBadRequest, "Invalid task ID")
+		return
+	}
+
+	var input queue.EditTaskInput
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		h.writeError(w, http.StatusBadRequest, "Invalid request body")
+		return
+	}
+
+	task, err := h.manager.EditTask(r.Context(), id, input)
 	if err != nil {
 		if err == queue.ErrTaskNotFound {
 			h.writeError(w, http.StatusNotFound, "Task not found")

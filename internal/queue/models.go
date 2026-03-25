@@ -49,12 +49,16 @@ type CreateTaskInput struct {
 	Priority    int    `json:"priority,omitempty"`
 }
 
-// UpdateTaskInput represents input for updating a task
+// UpdateTaskInput represents input for updating a task's status
 type UpdateTaskInput struct {
-	Status      *TaskStatus `json:"status,omitempty"`
-	Title       *string     `json:"title,omitempty"`
-	Description *string     `json:"description,omitempty"`
-	Priority    *int        `json:"priority,omitempty"`
+	Status *TaskStatus `json:"status,omitempty"`
+}
+
+// EditTaskInput represents input for editing a pending task's content
+type EditTaskInput struct {
+	Title       *string `json:"title,omitempty"`
+	Description *string `json:"description,omitempty"`
+	Priority    *int    `json:"priority,omitempty"`
 }
 
 // QueueStats represents statistics for a queue

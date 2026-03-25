@@ -27,6 +27,7 @@ type Storage interface {
 	GetTask(ctx context.Context, id int64) (*Task, error)
 	ListTasks(ctx context.Context, queueID int64, status *TaskStatus) ([]*Task, error)
 	UpdateTask(ctx context.Context, id int64, input UpdateTaskInput) (*Task, error)
+	EditTask(ctx context.Context, id int64, input EditTaskInput) (*Task, error)
 	DeleteTask(ctx context.Context, id int64) error
 	PrioritizeTask(ctx context.Context, taskID int64, position int) (*Task, error)
 }
@@ -87,8 +88,7 @@ func (m *Manager) ListTasks(ctx context.Context, queueID int64, status *TaskStat
 	return m.storage.ListTasks(ctx, queueID, status)
 }
 
-// UpdateTask updates a task's status or editable fields.
-// Title, Description, and Priority can only be changed when task is pending.
+// UpdateTask updates a task's status.
 func (m *Manager) UpdateTask(ctx context.Context, id int64, input UpdateTaskInput) (*Task, error) {
 	if input.Status != nil {
 		validStatuses := map[TaskStatus]bool{
@@ -100,17 +100,19 @@ func (m *Manager) UpdateTask(ctx context.Context, id int64, input UpdateTaskInpu
 			return nil, ErrInvalidStatus
 		}
 	}
-	// Enforce: title/description/priority edits only on pending tasks
-	if input.Title != nil || input.Description != nil || input.Priority != nil {
-		task, err := m.storage.GetTask(ctx, id)
-		if err != nil {
-			return nil, err
-		}
-		if task.Status != StatusPending {
-			return nil, ErrCannotEditNonPending
-		}
-	}
 	return m.storage.UpdateTask(ctx, id, input)
+}
+
+// EditTask updates the content (title, description, priority) of a pending task.
+func (m *Manager) EditTask(ctx context.Context, id int64, input EditTaskInput) (*Task, error) {
+	task, err := m.storage.GetTask(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if task.Status != StatusPending {
+		return nil, ErrCannotEditNonPending
+	}
+	return m.storage.EditTask(ctx, id, input)
 }
 
 // DeleteTask deletes a task

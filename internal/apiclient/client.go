@@ -154,9 +154,9 @@ func (c *Client) UpdateTaskStatus(ctx context.Context, id int64, status queue.Ta
 
 // EditTask updates the title, description, and/or priority of a pending task.
 func (c *Client) EditTask(ctx context.Context, id int64, title, desc *string, priority *int) (*queue.Task, error) {
-	input := queue.UpdateTaskInput{Title: title, Description: desc, Priority: priority}
+	input := queue.EditTaskInput{Title: title, Description: desc, Priority: priority}
 	var result queue.Task
-	if err := c.doRequest(ctx, http.MethodPatch, fmt.Sprintf("/api/tasks/%d", id), input, &result); err != nil {
+	if err := c.doRequest(ctx, http.MethodPut, fmt.Sprintf("/api/tasks/%d", id), input, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil

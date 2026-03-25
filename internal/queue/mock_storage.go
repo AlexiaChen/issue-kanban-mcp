@@ -133,6 +133,23 @@ func (m *MockStorage) UpdateTask(ctx context.Context, id int64, input UpdateTask
 	return t, nil
 }
 
+func (m *MockStorage) EditTask(ctx context.Context, id int64, input EditTaskInput) (*Task, error) {
+	t, ok := m.tasks[id]
+	if !ok {
+		return nil, ErrTaskNotFound
+	}
+	if input.Title != nil {
+		t.Title = *input.Title
+	}
+	if input.Description != nil {
+		t.Description = *input.Description
+	}
+	if input.Priority != nil {
+		t.Priority = *input.Priority
+	}
+	return t, nil
+}
+
 func (m *MockStorage) DeleteTask(ctx context.Context, id int64) error {
 	if _, ok := m.tasks[id]; !ok {
 		return ErrTaskNotFound

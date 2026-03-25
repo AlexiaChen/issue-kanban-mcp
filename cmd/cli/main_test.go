@@ -223,7 +223,7 @@ func TestTasksEdit(t *testing.T) {
 	edited := mockTask
 	edited.Title = "Updated Title"
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodPatch && r.URL.Path == "/api/tasks/10" {
+		if r.Method == http.MethodPut && r.URL.Path == "/api/tasks/10" {
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(edited)
 			return

@@ -32,6 +32,19 @@ const api = {
         return res.json();
     },
 
+    async put(url, data) {
+        const res = await fetch(url, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+        if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.error || `HTTP ${res.status}`);
+        }
+        return res.json();
+    },
+
     async delete(url) {
         const res = await fetch(url, { method: 'DELETE' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -315,7 +328,7 @@ function showTaskModal(task = null) {
 
         try {
             if (task) {
-                await api.patch(`/api/tasks/${task.id}`, {
+                await api.put(`/api/tasks/${task.id}`, {
                     title: formData.get('title'),
                     description: formData.get('description'),
                     priority: parseInt(formData.get('priority')) || 0

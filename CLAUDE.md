@@ -115,10 +115,8 @@ make build-tui
 | `j`/`k` or `↑`/`↓` | Navigate list |
 | `Enter` | Open queue |
 | `n` | New queue / task |
+| `e` | Edit selected task (pending only) |
 | `d` | Delete selected |
-| `s` | Start task (pending → doing) |
-| `f` | Finish task (doing → finished) |
-| `r` | Reset task (finished → pending) |
 | `p` | Prioritize task (move to front) |
 | `R` | Manual refresh |
 | `Esc` / `q` | Back / quit |
@@ -140,9 +138,7 @@ make build-cli
 ./bin/task-queue-cli tasks list <queue-id> [--status pending|doing|finished]
 ./bin/task-queue-cli tasks get <id>
 ./bin/task-queue-cli tasks create <queue-id> --title "task" [--desc "..."] [--priority 0]
-./bin/task-queue-cli tasks start <id>
-./bin/task-queue-cli tasks finish <id>
-./bin/task-queue-cli tasks reset <id>
+./bin/task-queue-cli tasks edit <id> [--title "new title"] [--desc "new desc"] [--priority 1]
 ./bin/task-queue-cli tasks delete <id> [--yes]
 ./bin/task-queue-cli tasks prioritize <id>
 ```
@@ -212,10 +208,9 @@ make build  # Uses CGO_ENABLED=0
 ### Tasks
 - `POST /api/tasks` - Create task
 - `GET /api/tasks/{id}` - Get task
-- `PATCH /api/tasks/{id}` - Update task
+- `PATCH /api/tasks/{id}` - Update task **status** (pending/doing/finished) — used by MCP
+- `PUT /api/tasks/{id}` - Edit task content (title/description/priority, pending only)
 - `DELETE /api/tasks/{id}` - Delete task
-- `POST /api/tasks/{id}/start` - Start task (pending → doing)
-- `POST /api/tasks/{id}/finish` - Finish task (doing → finished)
 - `POST /api/tasks/{id}/prioritize` - Prioritize task (插队)
 
 ## Key Dependencies
