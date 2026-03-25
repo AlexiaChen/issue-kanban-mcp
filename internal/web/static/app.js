@@ -41,6 +41,8 @@ const api = {
 
 // State
 let currentQueueId = null;
+let autoRefreshTimer = null;
+const AUTO_REFRESH_INTERVAL = 5000; // 5 seconds
 
 // DOM Elements
 const queuesSection = document.getElementById('queues-section');
@@ -120,6 +122,7 @@ async function showQueueDetail(queueId) {
     queueDetailSection.classList.remove('hidden');
 
     await loadQueueDetail(queueId);
+    startAutoRefresh();
 }
 
 async function loadQueueDetail(queueId) {
@@ -199,10 +202,27 @@ function renderTasks(tasks) {
 }
 
 function showQueuesList() {
+    stopAutoRefresh();
     currentQueueId = null;
     queueDetailSection.classList.add('hidden');
     queuesSection.classList.remove('hidden');
     loadQueues();
+}
+
+function startAutoRefresh() {
+    stopAutoRefresh();
+    autoRefreshTimer = setInterval(() => {
+        if (currentQueueId) {
+            loadQueueDetail(currentQueueId);
+        }
+    }, AUTO_REFRESH_INTERVAL);
+}
+
+function stopAutoRefresh() {
+    if (autoRefreshTimer !== null) {
+        clearInterval(autoRefreshTimer);
+        autoRefreshTimer = null;
+    }
 }
 
 // Task actions
