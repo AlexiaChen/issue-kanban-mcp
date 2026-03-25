@@ -184,9 +184,7 @@ func newTasksCmd(clientFn func(*cobra.Command) *apiclient.Client) *cobra.Command
 	cmd.AddCommand(newTasksListCmd(clientFn))
 	cmd.AddCommand(newTasksGetCmd(clientFn))
 	cmd.AddCommand(newTasksCreateCmd(clientFn))
-	cmd.AddCommand(newTasksStartCmd(clientFn))
-	cmd.AddCommand(newTasksFinishCmd(clientFn))
-	cmd.AddCommand(newTasksResetCmd(clientFn))
+	cmd.AddCommand(newTasksEditCmd(clientFn))
 	cmd.AddCommand(newTasksDeleteCmd(clientFn))
 	cmd.AddCommand(newTasksPrioritizeCmd(clientFn))
 	return cmd
@@ -289,64 +287,44 @@ func newTasksCreateCmd(clientFn func(*cobra.Command) *apiclient.Client) *cobra.C
 	return cmd
 }
 
-func newTasksStartCmd(clientFn func(*cobra.Command) *apiclient.Client) *cobra.Command {
-	return &cobra.Command{
-		Use:   "start <id>",
-		Short: "Start a task (pending → doing)",
+func newTasksEditCmd(clientFn func(*cobra.Command) *apiclient.Client) *cobra.Command {
+	var title, desc string
+	var priority int
+	cmd := &cobra.Command{
+		Use:   "edit <id>",
+		Short: "Edit a pending task's title, description, or priority",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id, err := strconv.ParseInt(args[0], 10, 64)
 			if err != nil {
 				return fmt.Errorf("invalid id: %w", err)
 			}
-			t, err := clientFn(cmd).StartTask(context.Background(), id)
+			var titlePtr, descPtr *string
+			var priorityPtr *int
+			if cmd.Flags().Changed("title") {
+				titlePtr = &title
+			}
+			if cmd.Flags().Changed("desc") {
+				descPtr = &desc
+			}
+			if cmd.Flags().Changed("priority") {
+				priorityPtr = &priority
+			}
+			if titlePtr == nil && descPtr == nil && priorityPtr == nil {
+				return fmt.Errorf("provide at least one of --title, --desc, --priority")
+			}
+			t, err := clientFn(cmd).EditTask(context.Background(), id, titlePtr, descPtr, priorityPtr)
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Task %d started: %s\n", t.ID, t.Title)
+			fmt.Fprintf(cmd.OutOrStdout(), "Task %d updated: %s\n", t.ID, t.Title)
 			return nil
 		},
 	}
-}
-
-func newTasksFinishCmd(clientFn func(*cobra.Command) *apiclient.Client) *cobra.Command {
-	return &cobra.Command{
-		Use:   "finish <id>",
-		Short: "Finish a task (doing → finished)",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			id, err := strconv.ParseInt(args[0], 10, 64)
-			if err != nil {
-				return fmt.Errorf("invalid id: %w", err)
-			}
-			t, err := clientFn(cmd).FinishTask(context.Background(), id)
-			if err != nil {
-				return err
-			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Task %d finished: %s\n", t.ID, t.Title)
-			return nil
-		},
-	}
-}
-
-func newTasksResetCmd(clientFn func(*cobra.Command) *apiclient.Client) *cobra.Command {
-	return &cobra.Command{
-		Use:   "reset <id>",
-		Short: "Reset a task to pending",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			id, err := strconv.ParseInt(args[0], 10, 64)
-			if err != nil {
-				return fmt.Errorf("invalid id: %w", err)
-			}
-			t, err := clientFn(cmd).UpdateTask(context.Background(), id, queue.StatusPending)
-			if err != nil {
-				return err
-			}
-			fmt.Fprintf(cmd.OutOrStdout(), "Task %d reset to pending: %s\n", t.ID, t.Title)
-			return nil
-		},
-	}
+	cmd.Flags().StringVar(&title, "title", "", "new title")
+	cmd.Flags().StringVar(&desc, "desc", "", "new description")
+	cmd.Flags().IntVar(&priority, "priority", 0, "new priority")
+	return cmd
 }
 
 func newTasksDeleteCmd(clientFn func(*cobra.Command) *apiclient.Client) *cobra.Command {

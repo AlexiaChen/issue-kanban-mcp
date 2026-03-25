@@ -51,7 +51,10 @@ type CreateTaskInput struct {
 
 // UpdateTaskInput represents input for updating a task
 type UpdateTaskInput struct {
-	Status *TaskStatus `json:"status,omitempty"`
+	Status      *TaskStatus `json:"status,omitempty"`
+	Title       *string     `json:"title,omitempty"`
+	Description *string     `json:"description,omitempty"`
+	Priority    *int        `json:"priority,omitempty"`
 }
 
 // QueueStats represents statistics for a queue

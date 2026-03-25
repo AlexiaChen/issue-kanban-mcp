@@ -228,6 +228,10 @@ func (h *Handler) UpdateTask(w http.ResponseWriter, r *http.Request) {
 			h.writeError(w, http.StatusNotFound, "Task not found")
 			return
 		}
+		if err == queue.ErrCannotEditNonPending {
+			h.writeError(w, http.StatusBadRequest, err.Error())
+			return
+		}
 		h.writeError(w, http.StatusInternalServerError, err.Error())
 		return
 	}

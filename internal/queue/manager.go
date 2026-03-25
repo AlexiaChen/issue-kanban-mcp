@@ -7,9 +7,10 @@ import (
 )
 
 var (
-	ErrQueueNotFound = errors.New("queue not found")
-	ErrTaskNotFound  = errors.New("task not found")
-	ErrInvalidStatus = errors.New("invalid task status")
+	ErrQueueNotFound        = errors.New("queue not found")
+	ErrTaskNotFound         = errors.New("task not found")
+	ErrInvalidStatus        = errors.New("invalid task status")
+	ErrCannotEditNonPending = errors.New("task can only be edited when pending")
 )
 
 // Storage defines the interface for queue persistence
@@ -86,7 +87,8 @@ func (m *Manager) ListTasks(ctx context.Context, queueID int64, status *TaskStat
 	return m.storage.ListTasks(ctx, queueID, status)
 }
 
-// UpdateTask updates a task's status
+// UpdateTask updates a task's status or editable fields.
+// Title, Description, and Priority can only be changed when task is pending.
 func (m *Manager) UpdateTask(ctx context.Context, id int64, input UpdateTaskInput) (*Task, error) {
 	if input.Status != nil {
 		validStatuses := map[TaskStatus]bool{
@@ -96,6 +98,16 @@ func (m *Manager) UpdateTask(ctx context.Context, id int64, input UpdateTaskInpu
 		}
 		if !validStatuses[*input.Status] {
 			return nil, ErrInvalidStatus
+		}
+	}
+	// Enforce: title/description/priority edits only on pending tasks
+	if input.Title != nil || input.Description != nil || input.Priority != nil {
+		task, err := m.storage.GetTask(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if task.Status != StatusPending {
+			return nil, ErrCannotEditNonPending
 		}
 	}
 	return m.storage.UpdateTask(ctx, id, input)

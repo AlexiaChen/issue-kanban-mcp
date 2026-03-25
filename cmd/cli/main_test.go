@@ -219,69 +219,25 @@ func TestTasksCreate(t *testing.T) {
 	}
 }
 
-func TestTasksStart(t *testing.T) {
-	doing := mockTask
-	doing.Status = queue.StatusDoing
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodPost && r.URL.Path == "/api/tasks/10/start" {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(doing)
-			return
-		}
-		http.NotFound(w, r)
-	}))
-	defer ts.Close()
-
-	out, err := runCmd(t, ts, "tasks", "start", "10")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !strings.Contains(out, "started") {
-		t.Errorf("expected 'started', got:\n%s", out)
-	}
-}
-
-func TestTasksFinish(t *testing.T) {
-	finished := mockTask
-	finished.Status = queue.StatusFinished
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodPost && r.URL.Path == "/api/tasks/10/finish" {
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(finished)
-			return
-		}
-		http.NotFound(w, r)
-	}))
-	defer ts.Close()
-
-	out, err := runCmd(t, ts, "tasks", "finish", "10")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if !strings.Contains(out, "finished") {
-		t.Errorf("expected 'finished', got:\n%s", out)
-	}
-}
-
-func TestTasksReset(t *testing.T) {
-	reset := mockTask
-	reset.Status = queue.StatusPending
+func TestTasksEdit(t *testing.T) {
+	edited := mockTask
+	edited.Title = "Updated Title"
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodPatch && r.URL.Path == "/api/tasks/10" {
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(reset)
+			json.NewEncoder(w).Encode(edited)
 			return
 		}
 		http.NotFound(w, r)
 	}))
 	defer ts.Close()
 
-	out, err := runCmd(t, ts, "tasks", "reset", "10")
+	out, err := runCmd(t, ts, "tasks", "edit", "10", "--title", "Updated Title")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !strings.Contains(out, "reset to pending") {
-		t.Errorf("expected 'reset to pending', got:\n%s", out)
+	if !strings.Contains(out, "updated") {
+		t.Errorf("expected 'updated', got:\n%s", out)
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"task-queue-mcp/internal/queue"
@@ -303,6 +304,42 @@ func (s *SQLiteStorage) UpdateTask(ctx context.Context, id int64, input queue.Up
 			return nil, fmt.Errorf("failed to update task: %w", err)
 		}
 
+		affected, err := result.RowsAffected()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get rows affected: %w", err)
+		}
+		if affected == 0 {
+			return nil, queue.ErrTaskNotFound
+		}
+	}
+
+	// Update editable fields (title, description, priority) — only for pending tasks enforcement
+	// is handled at the manager layer; storage applies blindly.
+	if input.Title != nil || input.Description != nil || input.Priority != nil {
+		setClauses := []string{}
+		args := []interface{}{}
+
+		if input.Title != nil {
+			setClauses = append(setClauses, "title = ?")
+			args = append(args, *input.Title)
+		}
+		if input.Description != nil {
+			setClauses = append(setClauses, "description = ?")
+			args = append(args, *input.Description)
+		}
+		if input.Priority != nil {
+			setClauses = append(setClauses, "priority = ?")
+			args = append(args, *input.Priority)
+		}
+		setClauses = append(setClauses, "updated_at = ?")
+		args = append(args, now)
+		args = append(args, id)
+
+		query := "UPDATE tasks SET " + strings.Join(setClauses, ", ") + " WHERE id = ?"
+		result, err := s.db.ExecContext(ctx, query, args...)
+		if err != nil {
+			return nil, fmt.Errorf("failed to update task fields: %w", err)
+		}
 		affected, err := result.RowsAffected()
 		if err != nil {
 			return nil, fmt.Errorf("failed to get rows affected: %w", err)

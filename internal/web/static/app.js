@@ -186,14 +186,8 @@ function renderTasks(tasks) {
             <span class="task-status ${task.status}">${task.status}</span>
             <div class="task-actions">
                 ${task.status === 'pending' ? `
-                    <button class="btn btn-small btn-primary" onclick="startTask(${task.id})">Start</button>
+                    <button class="btn btn-small btn-secondary" onclick="editTask(${task.id})">✏️ Edit</button>
                     <button class="btn btn-small btn-secondary" onclick="prioritizeTask(${task.id})">⬆️ Prioritize</button>
-                ` : ''}
-                ${task.status === 'doing' ? `
-                    <button class="btn btn-small btn-primary" onclick="finishTask(${task.id})">Finish</button>
-                ` : ''}
-                ${task.status === 'finished' ? `
-                    <button class="btn btn-small btn-secondary" onclick="resetTask(${task.id})">Reset</button>
                 ` : ''}
                 <button class="btn btn-small btn-danger" onclick="deleteTask(${task.id})">Delete</button>
             </div>
@@ -226,30 +220,12 @@ function stopAutoRefresh() {
 }
 
 // Task actions
-async function startTask(taskId) {
+async function editTask(taskId) {
     try {
-        await api.post(`/api/tasks/${taskId}/start`);
-        loadQueueDetail(currentQueueId);
+        const task = await api.get(`/api/tasks/${taskId}`);
+        showTaskModal(task);
     } catch (err) {
-        alert('Failed to start task: ' + err.message);
-    }
-}
-
-async function finishTask(taskId) {
-    try {
-        await api.post(`/api/tasks/${taskId}/finish`);
-        loadQueueDetail(currentQueueId);
-    } catch (err) {
-        alert('Failed to finish task: ' + err.message);
-    }
-}
-
-async function resetTask(taskId) {
-    try {
-        await api.patch(`/api/tasks/${taskId}`, { status: 'pending' });
-        loadQueueDetail(currentQueueId);
-    } catch (err) {
-        alert('Failed to reset task: ' + err.message);
+        alert('Failed to load task: ' + err.message);
     }
 }
 
@@ -322,33 +298,40 @@ function showTaskModal(task = null) {
     modalForm.innerHTML = `
         <div class="form-group">
             <label for="title">Title *</label>
-            <input type="text" id="title" name="title" required value="${task?.title || ''}">
+            <input type="text" id="title" name="title" required value="${task ? escapeHtml(task.title) : ''}">
         </div>
         <div class="form-group">
             <label for="description">Description</label>
-            <textarea id="description" name="description" rows="3">${task?.description || ''}</textarea>
+            <textarea id="description" name="description" rows="3">${task ? escapeHtml(task.description || '') : ''}</textarea>
         </div>
         <div class="form-group">
             <label for="priority">Priority</label>
-            <input type="number" id="priority" name="priority" value="${task?.priority || 0}" min="0">
+            <input type="number" id="priority" name="priority" value="${task ? task.priority : 0}" min="0">
         </div>
     `;
 
     modalSubmit.onclick = async () => {
         const formData = new FormData(modalForm);
-        const data = {
-            queue_id: currentQueueId,
-            title: formData.get('title'),
-            description: formData.get('description'),
-            priority: parseInt(formData.get('priority')) || 0
-        };
 
         try {
-            await api.post('/api/tasks', data);
+            if (task) {
+                await api.patch(`/api/tasks/${task.id}`, {
+                    title: formData.get('title'),
+                    description: formData.get('description'),
+                    priority: parseInt(formData.get('priority')) || 0
+                });
+            } else {
+                await api.post('/api/tasks', {
+                    queue_id: currentQueueId,
+                    title: formData.get('title'),
+                    description: formData.get('description'),
+                    priority: parseInt(formData.get('priority')) || 0
+                });
+            }
             hideModal();
             loadQueueDetail(currentQueueId);
         } catch (err) {
-            alert('Failed to create task: ' + err.message);
+            alert((task ? 'Failed to update task: ' : 'Failed to create task: ') + err.message);
         }
     };
 

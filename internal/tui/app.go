@@ -22,6 +22,7 @@ const (
 	viewTaskList
 	viewCreateQueue
 	viewCreateTask
+	viewEditTask
 	viewConfirmDelete
 )
 
@@ -50,6 +51,7 @@ type App struct {
 	inputs        []textinput.Model
 	focusIdx      int
 	formMode      string
+	editingTask   *queue.Task
 	pendingDelete pendingDeleteInfo
 	statusMsg     string
 	isError       bool
@@ -178,7 +180,7 @@ func (a App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return a.handleQueueListKey(msg)
 	case viewTaskList:
 		return a.handleTaskListKey(msg)
-	case viewCreateQueue, viewCreateTask:
+	case viewCreateQueue, viewCreateTask, viewEditTask:
 		return a.handleFormKey(msg)
 	case viewConfirmDelete:
 		return a.handleConfirmKey(msg)
@@ -252,22 +254,18 @@ func (a App) handleTaskListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			a.pendingDelete = pendingDeleteInfo{kind: "task", id: t.ID, name: t.Title}
 			a.state = viewConfirmDelete
 		}
-	case "s":
+	case "e":
 		if len(a.tasks) > 0 && a.taskIdx < len(a.tasks) {
-			if a.tasks[a.taskIdx].Status == queue.StatusPending {
-				return a, a.doStartTask(a.tasks[a.taskIdx].ID)
-			}
-		}
-	case "f":
-		if len(a.tasks) > 0 && a.taskIdx < len(a.tasks) {
-			if a.tasks[a.taskIdx].Status == queue.StatusDoing {
-				return a, a.doFinishTask(a.tasks[a.taskIdx].ID)
-			}
-		}
-	case "r":
-		if len(a.tasks) > 0 && a.taskIdx < len(a.tasks) {
-			if a.tasks[a.taskIdx].Status == queue.StatusFinished {
-				return a, a.doResetTask(a.tasks[a.taskIdx].ID)
+			t := a.tasks[a.taskIdx]
+			if t.Status == queue.StatusPending {
+				a.editingTask = &t
+				a.formMode = "edit"
+				a.state = viewEditTask
+				a.inputs = makeEditTaskInputs(t)
+				a.focusIdx = 0
+				a.statusMsg = ""
+				cmd := a.inputs[0].Focus()
+				return a, cmd
 			}
 		}
 	case "p":
@@ -295,6 +293,9 @@ func (a App) handleFormKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case tea.KeyEsc:
 		if a.state == viewCreateQueue {
 			a.state = viewQueueList
+		} else if a.state == viewEditTask {
+			a.state = viewTaskList
+			a.editingTask = nil
 		} else {
 			a.state = viewTaskList
 		}
@@ -380,6 +381,36 @@ func (a App) submitForm() (tea.Model, tea.Cmd) {
 		a.statusMsg = ""
 		return a, a.doCreateTask(input)
 	}
+
+	if a.state == viewEditTask {
+		if a.editingTask == nil {
+			a.state = viewTaskList
+			return a, nil
+		}
+		title := strings.TrimSpace(a.inputs[0].Value())
+		if title == "" {
+			a.statusMsg = "Title is required"
+			a.isError = true
+			return a, nil
+		}
+		desc := strings.TrimSpace(a.inputs[1].Value())
+		priorityStr := strings.TrimSpace(a.inputs[2].Value())
+		priority := 0
+		if priorityStr != "" {
+			p, err := strconv.Atoi(priorityStr)
+			if err != nil {
+				a.statusMsg = "Priority must be a number"
+				a.isError = true
+				return a, nil
+			}
+			priority = p
+		}
+		id := a.editingTask.ID
+		a.state = viewTaskList
+		a.editingTask = nil
+		a.statusMsg = ""
+		return a, a.doEditTask(id, title, desc, priority)
+	}
 	return a, nil
 }
 
@@ -425,27 +456,9 @@ func (a App) doDelete() (tea.Model, tea.Cmd) {
 	}
 }
 
-func (a App) doStartTask(id int64) tea.Cmd {
+func (a App) doEditTask(id int64, title, desc string, priority int) tea.Cmd {
 	return func() tea.Msg {
-		if _, err := a.client.StartTask(context.Background(), id); err != nil {
-			return errMsg{err}
-		}
-		return actionDoneMsg{}
-	}
-}
-
-func (a App) doFinishTask(id int64) tea.Cmd {
-	return func() tea.Msg {
-		if _, err := a.client.FinishTask(context.Background(), id); err != nil {
-			return errMsg{err}
-		}
-		return actionDoneMsg{}
-	}
-}
-
-func (a App) doResetTask(id int64) tea.Cmd {
-	return func() tea.Msg {
-		if _, err := a.client.UpdateTask(context.Background(), id, queue.StatusPending); err != nil {
+		if _, err := a.client.EditTask(context.Background(), id, &title, &desc, &priority); err != nil {
 			return errMsg{err}
 		}
 		return actionDoneMsg{}
@@ -472,7 +485,7 @@ func (a App) View() string {
 		return a.viewQueueList()
 	case viewTaskList:
 		return a.viewTaskList()
-	case viewCreateQueue, viewCreateTask:
+	case viewCreateQueue, viewCreateTask, viewEditTask:
 		return a.viewCreateForm()
 	case viewConfirmDelete:
 		return a.viewConfirmDelete()
@@ -555,7 +568,7 @@ func (a App) viewTaskList() string {
 	if msg := a.statusBar(); msg != "" {
 		sb.WriteString(msg + "\n")
 	}
-	sb.WriteString(helpStyle.Render("  j/k: nav  •  n: new  •  s: start  •  f: finish  •  r: reset  •  p: prioritize  •  d: delete  •  Esc: back"))
+	sb.WriteString(helpStyle.Render("  j/k: nav  •  n: new  •  e: edit (pending)  •  p: prioritize  •  d: delete  •  Esc: back"))
 	return sb.String()
 }
 
@@ -568,6 +581,9 @@ func (a App) viewCreateForm() string {
 	if a.formMode == "queue" {
 		formTitle = "Create New Queue"
 		labels = []string{"Name:", "Description:"}
+	} else if a.formMode == "edit" {
+		formTitle = "Edit Task"
+		labels = []string{"Title:", "Description:", "Priority:"}
 	} else {
 		formTitle = "Create New Task"
 		labels = []string{"Title:", "Description:", "Priority:"}
@@ -656,6 +672,25 @@ func makeTaskInputs() []textinput.Model {
 	prio := textinput.New()
 	prio.Placeholder = "0"
 	prio.CharLimit = 5
+
+	return []textinput.Model{title, desc, prio}
+}
+
+func makeEditTaskInputs(t queue.Task) []textinput.Model {
+	title := textinput.New()
+	title.Placeholder = "Task title (required)"
+	title.CharLimit = 200
+	title.SetValue(t.Title)
+
+	desc := textinput.New()
+	desc.Placeholder = "Description (optional)"
+	desc.CharLimit = 500
+	desc.SetValue(t.Description)
+
+	prio := textinput.New()
+	prio.Placeholder = "0"
+	prio.CharLimit = 5
+	prio.SetValue(strconv.Itoa(t.Priority))
 
 	return []textinput.Model{title, desc, prio}
 }

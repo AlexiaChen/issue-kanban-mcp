@@ -142,9 +142,19 @@ func (c *Client) CreateTask(ctx context.Context, input queue.CreateTaskInput) (*
 	return &result, nil
 }
 
-// UpdateTask updates a task's status.
-func (c *Client) UpdateTask(ctx context.Context, id int64, status queue.TaskStatus) (*queue.Task, error) {
+// UpdateTaskStatus updates a task's status.
+func (c *Client) UpdateTaskStatus(ctx context.Context, id int64, status queue.TaskStatus) (*queue.Task, error) {
 	input := queue.UpdateTaskInput{Status: &status}
+	var result queue.Task
+	if err := c.doRequest(ctx, http.MethodPatch, fmt.Sprintf("/api/tasks/%d", id), input, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
+
+// EditTask updates the title, description, and/or priority of a pending task.
+func (c *Client) EditTask(ctx context.Context, id int64, title, desc *string, priority *int) (*queue.Task, error) {
+	input := queue.UpdateTaskInput{Title: title, Description: desc, Priority: priority}
 	var result queue.Task
 	if err := c.doRequest(ctx, http.MethodPatch, fmt.Sprintf("/api/tasks/%d", id), input, &result); err != nil {
 		return nil, err
@@ -155,24 +165,6 @@ func (c *Client) UpdateTask(ctx context.Context, id int64, status queue.TaskStat
 // DeleteTask deletes a task by ID.
 func (c *Client) DeleteTask(ctx context.Context, id int64) error {
 	return c.doRequest(ctx, http.MethodDelete, fmt.Sprintf("/api/tasks/%d", id), nil, nil)
-}
-
-// StartTask transitions a task from pending to doing.
-func (c *Client) StartTask(ctx context.Context, id int64) (*queue.Task, error) {
-	var result queue.Task
-	if err := c.doRequest(ctx, http.MethodPost, fmt.Sprintf("/api/tasks/%d/start", id), nil, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
-}
-
-// FinishTask transitions a task from doing to finished.
-func (c *Client) FinishTask(ctx context.Context, id int64) (*queue.Task, error) {
-	var result queue.Task
-	if err := c.doRequest(ctx, http.MethodPost, fmt.Sprintf("/api/tasks/%d/finish", id), nil, &result); err != nil {
-		return nil, err
-	}
-	return &result, nil
 }
 
 // PrioritizeTask moves a task to the front of its queue.
