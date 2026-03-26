@@ -176,36 +176,57 @@ function renderQueueStats(stats) {
 }
 
 function renderTasks(tasks) {
-    if (tasks.length === 0) {
-        tasksList.innerHTML = `
-            <div class="empty-state">
-                <p>No issues in this project. Add your first issue!</p>
-            </div>
-        `;
-        return;
-    }
+    const statuses = ['pending', 'doing', 'finished'];
+    const labels = { pending: '📋 Pending', doing: '⚡ Doing', finished: '✅ Finished' };
 
-    tasksList.innerHTML = tasks.map(task => `
-        <div class="task-card ${task.status}">
-            <div class="task-info">
-                <h4>${escapeHtml(task.title)} ${task.priority && task.priority !== 'low' ? `<span class="priority-high">⚡${task.priority}</span>` : ''}</h4>
-                ${task.description ? `<p>${escapeHtml(task.description)}</p>` : ''}
-                <div class="task-meta">
-                    <span>ID: ${task.id}</span>
-                    <span>Position: ${task.position}</span>
-                    <span>Created: ${formatDate(task.created_at)}</span>
+    const grouped = { pending: [], doing: [], finished: [] };
+    tasks.forEach(t => { if (grouped[t.status]) grouped[t.status].push(t); });
+
+    tasksList.innerHTML = `
+        <div class="kanban-board">
+            ${statuses.map(status => `
+                <div class="kanban-column">
+                    <div class="kanban-column-header ${status}">
+                        <span>${labels[status]}</span>
+                        <span class="kanban-count">${grouped[status].length}</span>
+                    </div>
+                    <div class="kanban-column-body">
+                        ${grouped[status].length === 0
+                            ? `<div class="kanban-empty">No issues</div>`
+                            : grouped[status].map(task => renderTaskCard(task)).join('')}
+                    </div>
                 </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+function renderTaskCard(task) {
+    const priorityBadge = task.priority && task.priority !== 'low'
+        ? `<span class="priority-badge ${task.priority}">${task.priority === 'high' ? '🔴' : '🟡'} ${task.priority}</span>`
+        : `<span class="priority-badge low">🟢 low</span>`;
+
+    return `
+        <div class="kanban-card">
+            <div class="kanban-card-top">
+                <span class="kanban-card-title">${escapeHtml(task.title)}</span>
+                ${priorityBadge}
             </div>
-            <span class="task-status ${task.status}">${task.status}</span>
-            <div class="task-actions">
+            ${task.description ? `<p class="kanban-card-desc">${escapeHtml(task.description)}</p>` : ''}
+            <div class="kanban-card-meta">
+                <span>#${task.id}</span>
+                <span>pos: ${task.position}</span>
+                <span>${formatDate(task.created_at)}</span>
+            </div>
+            <div class="kanban-card-actions">
                 ${task.status === 'pending' ? `
                     <button class="btn btn-small btn-secondary" onclick="editTask(${task.id})">✏️ Edit</button>
                     <button class="btn btn-small btn-secondary" onclick="prioritizeTask(${task.id})">⬆️ Prioritize</button>
                 ` : ''}
-                <button class="btn btn-small btn-danger" onclick="deleteTask(${task.id})">Delete</button>
+                <button class="btn btn-small btn-danger" onclick="deleteTask(${task.id})">🗑️</button>
             </div>
         </div>
-    `).join('');
+    `;
 }
 
 function showQueuesList() {

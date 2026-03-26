@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"task-queue-mcp/internal/apiclient"
 	"task-queue-mcp/internal/queue"
@@ -47,7 +48,8 @@ type App struct {
 	queues        []apiclient.QueueWithStats
 	queueIdx      int
 	tasks         []queue.Task
-	taskIdx       int
+	taskIdx       int    // row index within the focused kanban column
+	kanbanColIdx  int    // which kanban column is focused: 0=pending, 1=doing, 2=finished
 	inputs        []textinput.Model
 	descInput     textarea.Model // multi-line description field for task forms
 	focusIdx      int
@@ -238,14 +240,27 @@ func (a App) handleQueueListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (a App) handleTaskListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	groups := a.groupedTasks()
+	currentCol := groups[a.kanbanColIdx]
+
 	switch msg.String() {
 	case "j", "down":
-		if a.taskIdx < len(a.tasks)-1 {
+		if a.taskIdx < len(currentCol)-1 {
 			a.taskIdx++
 		}
 	case "k", "up":
 		if a.taskIdx > 0 {
 			a.taskIdx--
+		}
+	case "h", "left":
+		if a.kanbanColIdx > 0 {
+			a.kanbanColIdx--
+			a.taskIdx = 0
+		}
+	case "l", "right":
+		if a.kanbanColIdx < 2 {
+			a.kanbanColIdx++
+			a.taskIdx = 0
 		}
 	case "n":
 		a.formMode = "task"
@@ -257,36 +272,33 @@ func (a App) handleTaskListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		cmd := a.inputs[0].Focus()
 		return a, cmd
 	case "d":
-		if len(a.tasks) > 0 && a.taskIdx < len(a.tasks) {
-			t := a.tasks[a.taskIdx]
+		t := a.selectedKanbanTask()
+		if t != nil {
 			a.pendingDelete = pendingDeleteInfo{kind: "issue", id: t.ID, name: t.Title}
 			a.state = viewConfirmDelete
 		}
 	case "e":
-		if len(a.tasks) > 0 && a.taskIdx < len(a.tasks) {
-			t := a.tasks[a.taskIdx]
-			if t.Status == queue.StatusPending {
-				a.editingTask = &t
-				a.formMode = "edit"
-				a.state = viewEditTask
-				a.inputs = makeEditTaskInputs(t)
-				a.descInput = newDescInput(a.effectiveWidth())
-				a.descInput.SetValue(t.Description)
-				a.focusIdx = 0
-				a.statusMsg = ""
-				cmd := a.inputs[0].Focus()
-				return a, cmd
-			}
+		t := a.selectedKanbanTask()
+		if t != nil && t.Status == queue.StatusPending {
+			a.editingTask = t
+			a.formMode = "edit"
+			a.state = viewEditTask
+			a.inputs = makeEditTaskInputs(*t)
+			a.descInput = newDescInput(a.effectiveWidth())
+			a.descInput.SetValue(t.Description)
+			a.focusIdx = 0
+			a.statusMsg = ""
+			cmd := a.inputs[0].Focus()
+			return a, cmd
 		}
 	case "p":
-		if len(a.tasks) > 0 && a.taskIdx < len(a.tasks) {
-			if a.tasks[a.taskIdx].Status == queue.StatusPending {
-				return a, a.doPrioritizeTask(a.tasks[a.taskIdx].ID)
-			}
+		t := a.selectedKanbanTask()
+		if t != nil && t.Status == queue.StatusPending {
+			return a, a.doPrioritizeTask(t.ID)
 		}
 	case "R":
 		a.statusMsg = ""
-		return a, a.loadTasksCmd()
+		return a, tea.Batch(a.loadTasksCmd(), a.loadQueuesCmd())
 	case "q", "esc":
 		a.state = viewQueueList
 		a.currentQueue = nil
@@ -596,6 +608,33 @@ func (a App) viewQueueList() string {
 	return sb.String()
 }
 
+// groupedTasks groups a.tasks by status into [0]=pending, [1]=doing, [2]=finished.
+func (a App) groupedTasks() [3][]queue.Task {
+	var groups [3][]queue.Task
+	for _, t := range a.tasks {
+		switch t.Status {
+		case queue.StatusPending:
+			groups[0] = append(groups[0], t)
+		case queue.StatusDoing:
+			groups[1] = append(groups[1], t)
+		case queue.StatusFinished:
+			groups[2] = append(groups[2], t)
+		}
+	}
+	return groups
+}
+
+// selectedKanbanTask returns the currently focused task in the kanban board.
+func (a App) selectedKanbanTask() *queue.Task {
+	groups := a.groupedTasks()
+	col := groups[a.kanbanColIdx]
+	if a.taskIdx >= 0 && a.taskIdx < len(col) {
+		t := col[a.taskIdx]
+		return &t
+	}
+	return nil
+}
+
 func (a App) viewTaskList() string {
 	w := a.effectiveWidth()
 	queueName := ""
@@ -607,31 +646,73 @@ func (a App) viewTaskList() string {
 	}
 	header := headerStyle.Width(w).Render(titleStyle.Render("📋 " + queueName + queueStats))
 
+	groups := a.groupedTasks()
+	colNames := [3]string{"📋 PENDING", "⚡ DOING", "✅ FINISHED"}
+	colColors := [3]lipgloss.Color{"#FCD34D", "#67E8F9", "#6EE7B7"}
+	focusedBorderColors := [3]lipgloss.Color{"#F59E0B", "#22D3EE", "#34D399"}
+
+	colWidth := (w - 6) / 3
+
+	var renderedCols [3]string
+	for ci := 0; ci < 3; ci++ {
+		group := groups[ci]
+		isFocused := ci == a.kanbanColIdx
+
+		borderColor := lipgloss.Color("#4B5563")
+		if isFocused {
+			borderColor = focusedBorderColors[ci]
+		}
+
+		// Column header
+		colHeader := lipgloss.NewStyle().
+			Bold(true).
+			Foreground(colColors[ci]).
+			Width(colWidth).
+			Render(fmt.Sprintf("%s (%d)", colNames[ci], len(group)))
+
+		var lines []string
+		if len(group) == 0 {
+			lines = append(lines, dimStyle.Width(colWidth).Render("  (empty)"))
+		} else {
+			for ri, t := range group {
+				priLabel := t.Priority.String()
+				maxTitle := colWidth - len(priLabel) - 3
+				if maxTitle < 5 {
+					maxTitle = 5
+				}
+				title := t.Title
+				if len(title) > maxTitle {
+					title = title[:maxTitle-1] + "…"
+				}
+				line := fmt.Sprintf("%-*s %s", maxTitle, title, priLabel)
+				if isFocused && ri == a.taskIdx {
+					lines = append(lines, selectedItemStyle.Width(colWidth).Render(line))
+				} else {
+					lines = append(lines, normalItemStyle.Width(colWidth).Render(line))
+				}
+			}
+		}
+
+		colContent := lipgloss.JoinVertical(lipgloss.Left, append([]string{colHeader}, lines...)...)
+		renderedCols[ci] = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(borderColor).
+			Width(colWidth).
+			Padding(0, 1).
+			Render(colContent)
+	}
+
+	kanban := lipgloss.JoinHorizontal(lipgloss.Top, renderedCols[0], " ", renderedCols[1], " ", renderedCols[2])
+
 	var sb strings.Builder
 	sb.WriteString(header)
 	sb.WriteString("\n\n")
-
-	if len(a.tasks) == 0 {
-		sb.WriteString(dimStyle.Render("  No issues yet. Press 'n' to create one."))
-		sb.WriteString("\n")
-	} else {
-		for i, t := range a.tasks {
-			badge := taskStatusLabel(t.Status)
-			line := fmt.Sprintf("  %-11s  %-40s  pri:%-6s", badge, t.Title, t.Priority.String())
-			if i == a.taskIdx {
-				sb.WriteString(selectedItemStyle.Render(line))
-			} else {
-				sb.WriteString(normalItemStyle.Render(line))
-			}
-			sb.WriteString("\n")
-		}
-	}
-
-	sb.WriteString("\n")
+	sb.WriteString(kanban)
+	sb.WriteString("\n\n")
 	if msg := a.statusBar(); msg != "" {
 		sb.WriteString(msg + "\n")
 	}
-	sb.WriteString(helpStyle.Render("  j/k: nav  •  n: new  •  e: edit (pending)  •  p: prioritize  •  d: delete  •  R: refresh  •  Esc: back"))
+	sb.WriteString(helpStyle.Render("  j/k: nav  •  h/l: columns  •  n: new  •  e: edit  •  p: prioritize  •  d: delete  •  R: refresh  •  Esc: back"))
 	return sb.String()
 }
 
