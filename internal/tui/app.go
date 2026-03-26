@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -49,6 +50,7 @@ type App struct {
 	tasks         []queue.Task
 	taskIdx       int
 	inputs        []textinput.Model
+	descInput     textarea.Model // multi-line description field for task forms
 	focusIdx      int
 	formMode      string
 	editingTask   *queue.Task
@@ -161,11 +163,16 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	// Forward all other messages (e.g. cursor blink) to active text inputs.
-	if a.state == viewCreateQueue || a.state == viewCreateTask {
+	if a.state == viewCreateQueue || a.state == viewCreateTask || a.state == viewEditTask {
 		var cmds []tea.Cmd
 		for i := range a.inputs {
 			var cmd tea.Cmd
 			a.inputs[i], cmd = a.inputs[i].Update(msg)
+			cmds = append(cmds, cmd)
+		}
+		if a.isTaskForm() {
+			var cmd tea.Cmd
+			a.descInput, cmd = a.descInput.Update(msg)
 			cmds = append(cmds, cmd)
 		}
 		return a, tea.Batch(cmds...)
@@ -244,6 +251,7 @@ func (a App) handleTaskListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.formMode = "task"
 		a.state = viewCreateTask
 		a.inputs = makeTaskInputs()
+		a.descInput = newDescInput(a.effectiveWidth())
 		a.focusIdx = 0
 		a.statusMsg = ""
 		cmd := a.inputs[0].Focus()
@@ -262,6 +270,8 @@ func (a App) handleTaskListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				a.formMode = "edit"
 				a.state = viewEditTask
 				a.inputs = makeEditTaskInputs(t)
+				a.descInput = newDescInput(a.effectiveWidth())
+				a.descInput.SetValue(t.Description)
 				a.focusIdx = 0
 				a.statusMsg = ""
 				cmd := a.inputs[0].Focus()
@@ -302,20 +312,64 @@ func (a App) handleFormKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.statusMsg = ""
 		return a, nil
 	case tea.KeyTab:
-		a.inputs[a.focusIdx].Blur()
-		a.focusIdx = (a.focusIdx + 1) % len(a.inputs)
-		cmd := a.inputs[a.focusIdx].Focus()
-		return a, cmd
+		a.blurCurrentField()
+		if a.isTaskForm() {
+			a.focusIdx = (a.focusIdx + 1) % 3
+		} else {
+			a.focusIdx = (a.focusIdx + 1) % len(a.inputs)
+		}
+		return a, a.focusCurrentField()
 	case tea.KeyShiftTab:
-		a.inputs[a.focusIdx].Blur()
-		a.focusIdx = (a.focusIdx - 1 + len(a.inputs)) % len(a.inputs)
-		cmd := a.inputs[a.focusIdx].Focus()
-		return a, cmd
+		a.blurCurrentField()
+		if a.isTaskForm() {
+			a.focusIdx = (a.focusIdx - 1 + 3) % 3
+		} else {
+			a.focusIdx = (a.focusIdx - 1 + len(a.inputs)) % len(a.inputs)
+		}
+		return a, a.focusCurrentField()
 	default:
+		if a.isTaskForm() && a.focusIdx == 1 {
+			var cmd tea.Cmd
+			a.descInput, cmd = a.descInput.Update(msg)
+			return a, cmd
+		}
 		var cmd tea.Cmd
-		a.inputs[a.focusIdx], cmd = a.inputs[a.focusIdx].Update(msg)
+		idx := a.queueInputIdx()
+		a.inputs[idx], cmd = a.inputs[idx].Update(msg)
 		return a, cmd
 	}
+}
+
+// isTaskForm reports whether the current form uses a textarea for description.
+func (a App) isTaskForm() bool {
+	return a.formMode == "task" || a.formMode == "edit"
+}
+
+// queueInputIdx maps focusIdx to the correct index in a.inputs.
+// For task forms: focusIdx 0→inputs[0] (title), 1→descInput, 2→inputs[1] (priority).
+// For queue forms: focusIdx maps directly.
+func (a App) queueInputIdx() int {
+	if a.isTaskForm() && a.focusIdx == 2 {
+		return 1
+	}
+	return a.focusIdx
+}
+
+// blurCurrentField blurs whichever component currently has focus.
+func (a App) blurCurrentField() {
+	if a.isTaskForm() && a.focusIdx == 1 {
+		a.descInput.Blur()
+		return
+	}
+	a.inputs[a.queueInputIdx()].Blur()
+}
+
+// focusCurrentField focuses whichever component should have focus per focusIdx.
+func (a App) focusCurrentField() tea.Cmd {
+	if a.isTaskForm() && a.focusIdx == 1 {
+		return a.descInput.Focus()
+	}
+	return a.inputs[a.queueInputIdx()].Focus()
 }
 
 func (a App) handleConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -359,8 +413,8 @@ func (a App) submitForm() (tea.Model, tea.Cmd) {
 			a.isError = true
 			return a, nil
 		}
-		desc := strings.TrimSpace(a.inputs[1].Value())
-		priorityStr := strings.TrimSpace(a.inputs[2].Value())
+		desc := strings.TrimSpace(a.descInput.Value())
+		priorityStr := strings.TrimSpace(a.inputs[1].Value())
 		priority := 0
 		if priorityStr != "" {
 			p, err := strconv.Atoi(priorityStr)
@@ -393,8 +447,8 @@ func (a App) submitForm() (tea.Model, tea.Cmd) {
 			a.isError = true
 			return a, nil
 		}
-		desc := strings.TrimSpace(a.inputs[1].Value())
-		priorityStr := strings.TrimSpace(a.inputs[2].Value())
+		desc := strings.TrimSpace(a.descInput.Value())
+		priorityStr := strings.TrimSpace(a.inputs[1].Value())
 		priority := 0
 		if priorityStr != "" {
 			p, err := strconv.Atoi(priorityStr)
@@ -596,8 +650,22 @@ func (a App) viewCreateForm() string {
 	sb.WriteString("\n\n")
 
 	for i, inp := range a.inputs {
-		label := labelStyle.Render(fmt.Sprintf("  %-14s", labels[i]))
+		// For task forms, inputs[0]=title, inputs[1]=priority.
+		// Description is handled as a textarea injected after title.
+		var labelIdx int
+		if a.isTaskForm() && i == 1 {
+			labelIdx = 2 // "Priority:" is at index 2 of the 3-element labels slice
+		} else {
+			labelIdx = i
+		}
+		label := labelStyle.Render(fmt.Sprintf("  %-14s", labels[labelIdx]))
 		sb.WriteString(label + inp.View() + "\n\n")
+		if a.isTaskForm() && i == 0 {
+			// render description textarea between title and priority
+			descLabel := labelStyle.Render(fmt.Sprintf("  %-14s", labels[1]))
+			sb.WriteString(descLabel + "\n")
+			sb.WriteString(a.descInput.View() + "\n\n")
+		}
 	}
 
 	if a.statusMsg != "" {
@@ -609,7 +677,7 @@ func (a App) viewCreateForm() string {
 	}
 
 	sb.WriteString("\n")
-	sb.WriteString(helpStyle.Render("  Ctrl+S: submit  •  Esc: cancel  •  Tab/Shift+Tab: cycle fields"))
+	sb.WriteString(helpStyle.Render("  Ctrl+S: submit  •  Esc: cancel  •  Tab/Shift+Tab: cycle fields  •  Enter: newline in description"))
 	return sb.String()
 }
 
@@ -665,15 +733,11 @@ func makeTaskInputs() []textinput.Model {
 	title.Placeholder = "Task title (required)"
 	title.CharLimit = 200
 
-	desc := textinput.New()
-	desc.Placeholder = "Description (optional)"
-	desc.CharLimit = 500
-
 	prio := textinput.New()
 	prio.Placeholder = "0"
 	prio.CharLimit = 5
 
-	return []textinput.Model{title, desc, prio}
+	return []textinput.Model{title, prio}
 }
 
 func makeEditTaskInputs(t queue.Task) []textinput.Model {
@@ -682,15 +746,20 @@ func makeEditTaskInputs(t queue.Task) []textinput.Model {
 	title.CharLimit = 200
 	title.SetValue(t.Title)
 
-	desc := textinput.New()
-	desc.Placeholder = "Description (optional)"
-	desc.CharLimit = 500
-	desc.SetValue(t.Description)
-
 	prio := textinput.New()
 	prio.Placeholder = "0"
 	prio.CharLimit = 5
 	prio.SetValue(strconv.Itoa(t.Priority))
 
-	return []textinput.Model{title, desc, prio}
+	return []textinput.Model{title, prio}
+}
+
+func newDescInput(width int) textarea.Model {
+	ta := textarea.New()
+	ta.Placeholder = "Description (optional, multi-line)"
+	ta.CharLimit = 2000
+	ta.SetWidth(width - 20)
+	ta.SetHeight(5)
+	ta.ShowLineNumbers = false
+	return ta
 }
