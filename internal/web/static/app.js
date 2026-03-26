@@ -360,7 +360,7 @@ function showTaskModal(task = null) {
                 });
             } else {
                 await api.post('/api/issues', {
-                    queue_id: currentQueueId,
+                    project_id: currentQueueId,
                     title: formData.get('title'),
                     description: formData.get('description'),
                     priority: formData.get('priority')

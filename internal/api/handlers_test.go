@@ -151,7 +151,7 @@ func TestAPI_CreateTask(t *testing.T) {
 		Name: "Test",
 	})
 
-	body := bytes.NewBufferString(`{"queue_id":1,"title":"Test Task","description":"Desc"}`)
+	body := bytes.NewBufferString(`{"project_id":1,"title":"Test Task","description":"Desc"}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/tasks", body)
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()

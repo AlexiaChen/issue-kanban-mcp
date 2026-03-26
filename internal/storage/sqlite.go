@@ -466,32 +466,5 @@ func runMigrations(db *sql.DB) error {
 		return err
 	}
 
-	// Idempotent migration: rename queue_id → project_id on existing databases
-	var hasQueueID bool
-	rows, err := db.Query("PRAGMA table_info(tasks)")
-	if err != nil {
-		return fmt.Errorf("failed to query table_info: %w", err)
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var cid int
-		var name, colType string
-		var notNull, pk int
-		var dfltValue interface{}
-		if err := rows.Scan(&cid, &name, &colType, &notNull, &dfltValue, &pk); err != nil {
-			return fmt.Errorf("failed to scan column info: %w", err)
-		}
-		if name == "queue_id" {
-			hasQueueID = true
-			break
-		}
-	}
-	rows.Close()
-	if hasQueueID {
-		if _, err := db.Exec("ALTER TABLE tasks RENAME COLUMN queue_id TO project_id"); err != nil {
-			return fmt.Errorf("failed to rename queue_id to project_id: %w", err)
-		}
-	}
-
 	return nil
 }
