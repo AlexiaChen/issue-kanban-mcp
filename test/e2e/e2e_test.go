@@ -35,14 +35,14 @@ func TestE2E_QueueCRUD(t *testing.T) {
 	client := NewE2EClient(serverURL)
 
 	// List queues (should be empty or have existing)
-	queues, err := client.ListQueues()
+	queues, err := client.ListProjects()
 	if err != nil {
 		t.Fatalf("Failed to list queues: %v", err)
 	}
 	initialCount := len(queues)
 
 	// Create queue
-	q, err := client.CreateQueue(map[string]interface{}{
+	q, err := client.CreateProject(map[string]interface{}{
 		"name":        fmt.Sprintf("E2E Test Queue %d", time.Now().Unix()),
 		"description": "Created by e2e test",
 	})
@@ -53,7 +53,7 @@ func TestE2E_QueueCRUD(t *testing.T) {
 	t.Logf("Created queue with ID: %d", queueID)
 
 	// Get queue
-	q2, err := client.GetQueue(queueID)
+	q2, err := client.GetProject(queueID)
 	if err != nil {
 		t.Fatalf("Failed to get queue: %v", err)
 	}
@@ -62,7 +62,7 @@ func TestE2E_QueueCRUD(t *testing.T) {
 	}
 
 	// List queues (should have one more)
-	queues, err = client.ListQueues()
+	queues, err = client.ListProjects()
 	if err != nil {
 		t.Fatalf("Failed to list queues: %v", err)
 	}
@@ -71,12 +71,12 @@ func TestE2E_QueueCRUD(t *testing.T) {
 	}
 
 	// Delete queue
-	if err := client.DeleteQueue(queueID); err != nil {
+	if err := client.DeleteProject(queueID); err != nil {
 		t.Fatalf("Failed to delete queue: %v", err)
 	}
 
 	// Verify deleted
-	_, err = client.GetQueue(queueID)
+	_, err = client.GetProject(queueID)
 	if err == nil {
 		t.Error("Expected error getting deleted queue")
 	}
@@ -86,17 +86,17 @@ func TestE2E_TaskCRUD(t *testing.T) {
 	client := NewE2EClient(serverURL)
 
 	// Create queue
-	q, err := client.CreateQueue(map[string]interface{}{
+	q, err := client.CreateProject(map[string]interface{}{
 		"name": fmt.Sprintf("Task Test Queue %d", time.Now().Unix()),
 	})
 	if err != nil {
 		t.Fatalf("Failed to create queue: %v", err)
 	}
 	queueID := int64(q["id"].(float64))
-	defer client.DeleteQueue(queueID)
+	defer client.DeleteProject(queueID)
 
 	// Create task
-	task, err := client.CreateTask(map[string]interface{}{
+	task, err := client.CreateIssue(map[string]interface{}{
 		"queue_id":    queueID,
 		"title":       "E2E Test Task",
 		"description": "Test task description",
@@ -114,7 +114,7 @@ func TestE2E_TaskCRUD(t *testing.T) {
 	}
 
 	// List tasks
-	tasks, err := client.ListTasks(queueID, "")
+	tasks, err := client.ListIssues(queueID, "")
 	if err != nil {
 		t.Fatalf("Failed to list tasks: %v", err)
 	}
@@ -123,7 +123,7 @@ func TestE2E_TaskCRUD(t *testing.T) {
 	}
 
 	// Start task
-	task, err = client.StartTask(taskID)
+	task, err = client.StartIssue(taskID)
 	if err != nil {
 		t.Fatalf("Failed to start task: %v", err)
 	}
@@ -132,7 +132,7 @@ func TestE2E_TaskCRUD(t *testing.T) {
 	}
 
 	// Finish task
-	task, err = client.FinishTask(taskID)
+	task, err = client.FinishIssue(taskID)
 	if err != nil {
 		t.Fatalf("Failed to finish task: %v", err)
 	}
@@ -141,7 +141,7 @@ func TestE2E_TaskCRUD(t *testing.T) {
 	}
 
 	// List finished tasks
-	tasks, err = client.ListTasks(queueID, "finished")
+	tasks, err = client.ListIssues(queueID, "finished")
 	if err != nil {
 		t.Fatalf("Failed to list tasks: %v", err)
 	}
@@ -150,12 +150,12 @@ func TestE2E_TaskCRUD(t *testing.T) {
 	}
 
 	// Delete task
-	if err := client.DeleteTask(taskID); err != nil {
+	if err := client.DeleteIssue(taskID); err != nil {
 		t.Fatalf("Failed to delete task: %v", err)
 	}
 
 	// Verify deleted
-	tasks, err = client.ListTasks(queueID, "")
+	tasks, err = client.ListIssues(queueID, "")
 	if err != nil {
 		t.Fatalf("Failed to list tasks: %v", err)
 	}
@@ -168,24 +168,24 @@ func TestE2E_TaskPrioritization(t *testing.T) {
 	client := NewE2EClient(serverURL)
 
 	// Create queue
-	q, _ := client.CreateQueue(map[string]interface{}{
+	q, _ := client.CreateProject(map[string]interface{}{
 		"name": fmt.Sprintf("Priority Test Queue %d", time.Now().Unix()),
 	})
 	queueID := int64(q["id"].(float64))
-	defer client.DeleteQueue(queueID)
+	defer client.DeleteProject(queueID)
 
 	// Create multiple tasks: task1 and task2 with low priority, task3 with high priority
-	client.CreateTask(map[string]interface{}{
+	client.CreateIssue(map[string]interface{}{
 		"queue_id": queueID,
 		"title":    "Task 1",
 		"priority": "low",
 	})
-	client.CreateTask(map[string]interface{}{
+	client.CreateIssue(map[string]interface{}{
 		"queue_id": queueID,
 		"title":    "Task 2",
 		"priority": "low",
 	})
-	task3, _ := client.CreateTask(map[string]interface{}{
+	task3, _ := client.CreateIssue(map[string]interface{}{
 		"queue_id": queueID,
 		"title":    "Task 3",
 		"priority": "high",
@@ -194,13 +194,13 @@ func TestE2E_TaskPrioritization(t *testing.T) {
 	task3ID := int64(task3["id"].(float64))
 
 	// Prioritize task3 (high priority) ahead of lower-priority tasks
-	_, err := client.PrioritizeTask(task3ID)
+	_, err := client.PrioritizeIssue(task3ID)
 	if err != nil {
 		t.Fatalf("Failed to prioritize task: %v", err)
 	}
 
 	// List tasks and verify order
-	tasks, err := client.ListTasks(queueID, "")
+	tasks, err := client.ListIssues(queueID, "")
 	if err != nil {
 		t.Fatalf("Failed to list tasks: %v", err)
 	}
@@ -221,33 +221,33 @@ func TestE2E_QueueStats(t *testing.T) {
 	client := NewE2EClient(serverURL)
 
 	// Create queue
-	q, _ := client.CreateQueue(map[string]interface{}{
+	q, _ := client.CreateProject(map[string]interface{}{
 		"name": fmt.Sprintf("Stats Test Queue %d", time.Now().Unix()),
 	})
 	queueID := int64(q["id"].(float64))
-	defer client.DeleteQueue(queueID)
+	defer client.DeleteProject(queueID)
 
 	// Create tasks in different states
-	task1, _ := client.CreateTask(map[string]interface{}{
+	task1, _ := client.CreateIssue(map[string]interface{}{
 		"queue_id": queueID,
 		"title":    "Pending Task",
 	})
-	task2, _ := client.CreateTask(map[string]interface{}{
+	task2, _ := client.CreateIssue(map[string]interface{}{
 		"queue_id": queueID,
 		"title":    "Doing Task",
 	})
-	task3, _ := client.CreateTask(map[string]interface{}{
+	task3, _ := client.CreateIssue(map[string]interface{}{
 		"queue_id": queueID,
 		"title":    "Finished Task",
 	})
 
 	// Start and finish tasks
-	client.StartTask(int64(task2["id"].(float64)))
-	client.StartTask(int64(task3["id"].(float64)))
-	client.FinishTask(int64(task3["id"].(float64)))
+	client.StartIssue(int64(task2["id"].(float64)))
+	client.StartIssue(int64(task3["id"].(float64)))
+	client.FinishIssue(int64(task3["id"].(float64)))
 
 	// Get queue with stats
-	q2, err := client.GetQueue(queueID)
+	q2, err := client.GetProject(queueID)
 	if err != nil {
 		t.Fatalf("Failed to get queue: %v", err)
 	}
@@ -355,41 +355,41 @@ func (c *E2EClient) doRequest(method, path string, body interface{}) ([]byte, er
 	return respBody, nil
 }
 
-func (c *E2EClient) ListQueues() ([]map[string]interface{}, error) {
+func (c *E2EClient) ListProjects() ([]map[string]interface{}, error) {
 	return c.doArray("GET", "/api/projects", nil)
 }
 
-func (c *E2EClient) CreateQueue(data map[string]interface{}) (map[string]interface{}, error) {
+func (c *E2EClient) CreateProject(data map[string]interface{}) (map[string]interface{}, error) {
 	return c.doObject("POST", "/api/projects", data)
 }
 
-func (c *E2EClient) GetQueue(id int64) (map[string]interface{}, error) {
+func (c *E2EClient) GetProject(id int64) (map[string]interface{}, error) {
 	return c.doObject("GET", fmt.Sprintf("/api/projects/%d", id), nil)
 }
 
-func (c *E2EClient) DeleteQueue(id int64) error {
+func (c *E2EClient) DeleteProject(id int64) error {
 	_, err := c.doObject("DELETE", fmt.Sprintf("/api/projects/%d", id), nil)
 	return err
 }
 
-func (c *E2EClient) CreateTask(data map[string]interface{}) (map[string]interface{}, error) {
+func (c *E2EClient) CreateIssue(data map[string]interface{}) (map[string]interface{}, error) {
 	return c.doObject("POST", "/api/issues", data)
 }
 
-func (c *E2EClient) GetTask(id int64) (map[string]interface{}, error) {
+func (c *E2EClient) GetIssue(id int64) (map[string]interface{}, error) {
 	return c.doObject("GET", fmt.Sprintf("/api/issues/%d", id), nil)
 }
 
-func (c *E2EClient) UpdateTask(id int64, data map[string]interface{}) (map[string]interface{}, error) {
+func (c *E2EClient) UpdateIssue(id int64, data map[string]interface{}) (map[string]interface{}, error) {
 	return c.doObject("PATCH", fmt.Sprintf("/api/issues/%d", id), data)
 }
 
-func (c *E2EClient) DeleteTask(id int64) error {
+func (c *E2EClient) DeleteIssue(id int64) error {
 	_, err := c.doObject("DELETE", fmt.Sprintf("/api/issues/%d", id), nil)
 	return err
 }
 
-func (c *E2EClient) ListTasks(queueID int64, status string) ([]map[string]interface{}, error) {
+func (c *E2EClient) ListIssues(queueID int64, status string) ([]map[string]interface{}, error) {
 	path := fmt.Sprintf("/api/projects/%d/issues", queueID)
 	if status != "" {
 		path += "?status=" + status
@@ -397,15 +397,15 @@ func (c *E2EClient) ListTasks(queueID int64, status string) ([]map[string]interf
 	return c.doArray("GET", path, nil)
 }
 
-func (c *E2EClient) StartTask(id int64) (map[string]interface{}, error) {
+func (c *E2EClient) StartIssue(id int64) (map[string]interface{}, error) {
 	return c.doObject("POST", fmt.Sprintf("/api/issues/%d/start", id), nil)
 }
 
-func (c *E2EClient) FinishTask(id int64) (map[string]interface{}, error) {
+func (c *E2EClient) FinishIssue(id int64) (map[string]interface{}, error) {
 	return c.doObject("POST", fmt.Sprintf("/api/issues/%d/finish", id), nil)
 }
 
-func (c *E2EClient) PrioritizeTask(id int64) (map[string]interface{}, error) {
+func (c *E2EClient) PrioritizeIssue(id int64) (map[string]interface{}, error) {
 	return c.doObject("POST", fmt.Sprintf("/api/issues/%d/prioritize", id), nil)
 }
 
@@ -431,7 +431,7 @@ func TestIntegration_FullWorkflow(t *testing.T) {
 	ctx := context.Background()
 
 	// Create queue
-	q, err := manager.CreateQueue(ctx, queue.CreateQueueInput{
+	q, err := manager.CreateProject(ctx, queue.CreateQueueInput{
 		Name:        "Integration Test Queue",
 		Description: "Full workflow test",
 	})
@@ -441,7 +441,7 @@ func TestIntegration_FullWorkflow(t *testing.T) {
 
 	// Create tasks
 	for i := 1; i <= 5; i++ {
-		_, err := manager.CreateTask(ctx, queue.CreateTaskInput{
+		_, err := manager.CreateIssue(ctx, queue.CreateTaskInput{
 			QueueID:     q.ID,
 			Title:       fmt.Sprintf("Task %d", i),
 			Description: fmt.Sprintf("Description for task %d", i),
@@ -453,7 +453,7 @@ func TestIntegration_FullWorkflow(t *testing.T) {
 	}
 
 	// List tasks
-	tasks, err := manager.ListTasks(ctx, q.ID, nil)
+	tasks, err := manager.ListIssues(ctx, q.ID, nil)
 	if err != nil {
 		t.Fatalf("Failed to list tasks: %v", err)
 	}
@@ -464,16 +464,16 @@ func TestIntegration_FullWorkflow(t *testing.T) {
 	// Start and finish tasks
 	for i, task := range tasks {
 		if i < 2 {
-			_, err := manager.StartTask(ctx, task.ID)
+			_, err := manager.StartIssue(ctx, task.ID)
 			if err != nil {
 				t.Fatalf("Failed to start task %d: %v", task.ID, err)
 			}
-			_, err = manager.FinishTask(ctx, task.ID)
+			_, err = manager.FinishIssue(ctx, task.ID)
 			if err != nil {
 				t.Fatalf("Failed to finish task %d: %v", task.ID, err)
 			}
 		} else if i < 4 {
-			_, err := manager.StartTask(ctx, task.ID)
+			_, err := manager.StartIssue(ctx, task.ID)
 			if err != nil {
 				t.Fatalf("Failed to start task %d: %v", task.ID, err)
 			}
@@ -481,7 +481,7 @@ func TestIntegration_FullWorkflow(t *testing.T) {
 	}
 
 	// Check stats
-	stats, err := manager.GetQueueStats(ctx, q.ID)
+	stats, err := manager.GetProjectStats(ctx, q.ID)
 	if err != nil {
 		t.Fatalf("Failed to get stats: %v", err)
 	}
@@ -501,7 +501,7 @@ func TestIntegration_FullWorkflow(t *testing.T) {
 
 	// Test prioritization: add a low-priority task first, then a high-priority one
 	// so the high-priority task can jump ahead of the lower-priority one.
-	lowPrioTask, err := manager.CreateTask(ctx, queue.CreateTaskInput{
+	lowPrioTask, err := manager.CreateIssue(ctx, queue.CreateTaskInput{
 		QueueID:  q.ID,
 		Title:    "Low Priority Task",
 		Priority: queue.PriorityLow,
@@ -509,7 +509,7 @@ func TestIntegration_FullWorkflow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create low priority task: %v", err)
 	}
-	highPrioTask, err := manager.CreateTask(ctx, queue.CreateTaskInput{
+	highPrioTask, err := manager.CreateIssue(ctx, queue.CreateTaskInput{
 		QueueID:  q.ID,
 		Title:    "High Priority Task",
 		Priority: queue.PriorityHigh,
@@ -517,7 +517,7 @@ func TestIntegration_FullWorkflow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create high priority task: %v", err)
 	}
-	prioritizedTask, err := manager.PrioritizeTask(ctx, highPrioTask.ID)
+	prioritizedTask, err := manager.PrioritizeIssue(ctx, highPrioTask.ID)
 	if err != nil {
 		t.Fatalf("Failed to prioritize task: %v", err)
 	}

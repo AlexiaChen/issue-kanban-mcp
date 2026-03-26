@@ -49,8 +49,8 @@ func (s *SQLiteStorage) Close() error {
 	return s.db.Close()
 }
 
-// CreateQueue creates a new queue
-func (s *SQLiteStorage) CreateQueue(ctx context.Context, input queue.CreateQueueInput) (*queue.Queue, error) {
+// CreateProject creates a new queue
+func (s *SQLiteStorage) CreateProject(ctx context.Context, input queue.CreateQueueInput) (*queue.Queue, error) {
 	now := time.Now()
 	result, err := s.db.ExecContext(ctx,
 		"INSERT INTO queues (name, description, created_at, updated_at) VALUES (?, ?, ?, ?)",
@@ -65,11 +65,11 @@ func (s *SQLiteStorage) CreateQueue(ctx context.Context, input queue.CreateQueue
 		return nil, fmt.Errorf("failed to get last insert id: %w", err)
 	}
 
-	return s.GetQueue(ctx, id)
+	return s.GetProject(ctx, id)
 }
 
-// GetQueue retrieves a queue by ID
-func (s *SQLiteStorage) GetQueue(ctx context.Context, id int64) (*queue.Queue, error) {
+// GetProject retrieves a queue by ID
+func (s *SQLiteStorage) GetProject(ctx context.Context, id int64) (*queue.Queue, error) {
 	q := &queue.Queue{}
 	err := s.db.QueryRowContext(ctx,
 		"SELECT id, name, description, created_at, updated_at FROM queues WHERE id = ?",
@@ -84,8 +84,8 @@ func (s *SQLiteStorage) GetQueue(ctx context.Context, id int64) (*queue.Queue, e
 	return q, nil
 }
 
-// ListQueues returns all queues
-func (s *SQLiteStorage) ListQueues(ctx context.Context) ([]*queue.Queue, error) {
+// ListProjects returns all queues
+func (s *SQLiteStorage) ListProjects(ctx context.Context) ([]*queue.Queue, error) {
 	rows, err := s.db.QueryContext(ctx,
 		"SELECT id, name, description, created_at, updated_at FROM queues ORDER BY created_at DESC",
 	)
@@ -105,8 +105,8 @@ func (s *SQLiteStorage) ListQueues(ctx context.Context) ([]*queue.Queue, error) 
 	return queues, nil
 }
 
-// DeleteQueue deletes a queue and all its tasks
-func (s *SQLiteStorage) DeleteQueue(ctx context.Context, id int64) error {
+// DeleteProject deletes a queue and all its tasks
+func (s *SQLiteStorage) DeleteProject(ctx context.Context, id int64) error {
 	// First delete all tasks in the queue
 	_, err := s.db.ExecContext(ctx, "DELETE FROM tasks WHERE queue_id = ?", id)
 	if err != nil {
@@ -129,8 +129,8 @@ func (s *SQLiteStorage) DeleteQueue(ctx context.Context, id int64) error {
 	return nil
 }
 
-// GetQueueStats returns statistics for a queue
-func (s *SQLiteStorage) GetQueueStats(ctx context.Context, id int64) (*queue.QueueStats, error) {
+// GetProjectStats returns statistics for a queue
+func (s *SQLiteStorage) GetProjectStats(ctx context.Context, id int64) (*queue.QueueStats, error) {
 	stats := &queue.QueueStats{}
 	err := s.db.QueryRowContext(ctx,
 		"SELECT COUNT(*) FROM tasks WHERE queue_id = ?",
@@ -167,8 +167,8 @@ func (s *SQLiteStorage) GetQueueStats(ctx context.Context, id int64) (*queue.Que
 	return stats, nil
 }
 
-// CreateTask creates a new task in a queue
-func (s *SQLiteStorage) CreateTask(ctx context.Context, input queue.CreateTaskInput) (*queue.Task, error) {
+// CreateIssue creates a new task in a queue
+func (s *SQLiteStorage) CreateIssue(ctx context.Context, input queue.CreateTaskInput) (*queue.Task, error) {
 	now := time.Now()
 
 	// Get the max position for the queue
@@ -195,11 +195,11 @@ func (s *SQLiteStorage) CreateTask(ctx context.Context, input queue.CreateTaskIn
 		return nil, fmt.Errorf("failed to get last insert id: %w", err)
 	}
 
-	return s.GetTask(ctx, id)
+	return s.GetIssue(ctx, id)
 }
 
-// GetTask retrieves a task by ID
-func (s *SQLiteStorage) GetTask(ctx context.Context, id int64) (*queue.Task, error) {
+// GetIssue retrieves a task by ID
+func (s *SQLiteStorage) GetIssue(ctx context.Context, id int64) (*queue.Task, error) {
 	t := &queue.Task{}
 	var startedAt, finishedAt sql.NullTime
 	err := s.db.QueryRowContext(ctx,
@@ -224,8 +224,8 @@ func (s *SQLiteStorage) GetTask(ctx context.Context, id int64) (*queue.Task, err
 	return t, nil
 }
 
-// ListTasks returns tasks in a queue, optionally filtered by status
-func (s *SQLiteStorage) ListTasks(ctx context.Context, queueID int64, status *queue.TaskStatus) ([]*queue.Task, error) {
+// ListIssues returns tasks in a queue, optionally filtered by status
+func (s *SQLiteStorage) ListIssues(ctx context.Context, queueID int64, status *queue.TaskStatus) ([]*queue.Task, error) {
 	var query string
 	var args []interface{}
 
@@ -264,8 +264,8 @@ func (s *SQLiteStorage) ListTasks(ctx context.Context, queueID int64, status *qu
 	return tasks, nil
 }
 
-// UpdateTask updates a task's status
-func (s *SQLiteStorage) UpdateTask(ctx context.Context, id int64, input queue.UpdateTaskInput) (*queue.Task, error) {
+// UpdateIssue updates a task's status
+func (s *SQLiteStorage) UpdateIssue(ctx context.Context, id int64, input queue.UpdateTaskInput) (*queue.Task, error) {
 	now := time.Now()
 
 	if input.Status == nil {
@@ -305,11 +305,11 @@ func (s *SQLiteStorage) UpdateTask(ctx context.Context, id int64, input queue.Up
 		return nil, queue.ErrInvalidStatus
 	}
 
-	return s.GetTask(ctx, id)
+	return s.GetIssue(ctx, id)
 }
 
-// EditTask updates the content fields (title, description, priority) of a task
-func (s *SQLiteStorage) EditTask(ctx context.Context, id int64, input queue.EditTaskInput) (*queue.Task, error) {
+// EditIssue updates the content fields (title, description, priority) of a task
+func (s *SQLiteStorage) EditIssue(ctx context.Context, id int64, input queue.EditTaskInput) (*queue.Task, error) {
 	now := time.Now()
 
 	setClauses := []string{}
@@ -328,7 +328,7 @@ func (s *SQLiteStorage) EditTask(ctx context.Context, id int64, input queue.Edit
 		args = append(args, *input.Priority)
 	}
 	if len(setClauses) == 0 {
-		return s.GetTask(ctx, id)
+		return s.GetIssue(ctx, id)
 	}
 	setClauses = append(setClauses, "updated_at = ?")
 	args = append(args, now)
@@ -342,11 +342,11 @@ func (s *SQLiteStorage) EditTask(ctx context.Context, id int64, input queue.Edit
 	if affected, _ := result.RowsAffected(); affected == 0 {
 		return nil, queue.ErrTaskNotFound
 	}
-	return s.GetTask(ctx, id)
+	return s.GetIssue(ctx, id)
 }
 
-// DeleteTask deletes a task
-func (s *SQLiteStorage) DeleteTask(ctx context.Context, id int64) error {
+// DeleteIssue deletes a task
+func (s *SQLiteStorage) DeleteIssue(ctx context.Context, id int64) error {
 	result, err := s.db.ExecContext(ctx, "DELETE FROM tasks WHERE id = ?", id)
 	if err != nil {
 		return fmt.Errorf("failed to delete task: %w", err)
@@ -362,9 +362,9 @@ func (s *SQLiteStorage) DeleteTask(ctx context.Context, id int64) error {
 	return nil
 }
 
-// PrioritizeTask moves a pending task ahead of lower-priority pending tasks.
-func (s *SQLiteStorage) PrioritizeTask(ctx context.Context, taskID int64) (*queue.Task, error) {
-	task, err := s.GetTask(ctx, taskID)
+// PrioritizeIssue moves a pending task ahead of lower-priority pending tasks.
+func (s *SQLiteStorage) PrioritizeIssue(ctx context.Context, taskID int64) (*queue.Task, error) {
+	task, err := s.GetIssue(ctx, taskID)
 	if err != nil {
 		return nil, err
 	}
@@ -429,7 +429,7 @@ func (s *SQLiteStorage) PrioritizeTask(ctx context.Context, taskID int64) (*queu
 		return nil, fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
-	return s.GetTask(ctx, taskID)
+	return s.GetIssue(ctx, taskID)
 }
 
 // runMigrations runs database migrations

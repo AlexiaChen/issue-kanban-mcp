@@ -22,7 +22,7 @@ func NewMockStorage() *MockStorage {
 	}
 }
 
-func (m *MockStorage) CreateQueue(ctx context.Context, input CreateQueueInput) (*Queue, error) {
+func (m *MockStorage) CreateProject(ctx context.Context, input CreateQueueInput) (*Queue, error) {
 	q := &Queue{
 		ID:          m.nextQueue,
 		Name:        input.Name,
@@ -33,7 +33,7 @@ func (m *MockStorage) CreateQueue(ctx context.Context, input CreateQueueInput) (
 	return q, nil
 }
 
-func (m *MockStorage) GetQueue(ctx context.Context, id int64) (*Queue, error) {
+func (m *MockStorage) GetProject(ctx context.Context, id int64) (*Queue, error) {
 	q, ok := m.queues[id]
 	if !ok {
 		return nil, ErrQueueNotFound
@@ -41,7 +41,7 @@ func (m *MockStorage) GetQueue(ctx context.Context, id int64) (*Queue, error) {
 	return q, nil
 }
 
-func (m *MockStorage) ListQueues(ctx context.Context) ([]*Queue, error) {
+func (m *MockStorage) ListProjects(ctx context.Context) ([]*Queue, error) {
 	queues := make([]*Queue, 0)
 	for _, q := range m.queues {
 		queues = append(queues, q)
@@ -49,7 +49,7 @@ func (m *MockStorage) ListQueues(ctx context.Context) ([]*Queue, error) {
 	return queues, nil
 }
 
-func (m *MockStorage) DeleteQueue(ctx context.Context, id int64) error {
+func (m *MockStorage) DeleteProject(ctx context.Context, id int64) error {
 	if _, ok := m.queues[id]; !ok {
 		return ErrQueueNotFound
 	}
@@ -62,7 +62,7 @@ func (m *MockStorage) DeleteQueue(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (m *MockStorage) GetQueueStats(ctx context.Context, id int64) (*QueueStats, error) {
+func (m *MockStorage) GetProjectStats(ctx context.Context, id int64) (*QueueStats, error) {
 	stats := &QueueStats{}
 	for _, task := range m.tasks {
 		if task.QueueID == id {
@@ -80,7 +80,7 @@ func (m *MockStorage) GetQueueStats(ctx context.Context, id int64) (*QueueStats,
 	return stats, nil
 }
 
-func (m *MockStorage) CreateTask(ctx context.Context, input CreateTaskInput) (*Task, error) {
+func (m *MockStorage) CreateIssue(ctx context.Context, input CreateTaskInput) (*Task, error) {
 	maxPos := 0
 	for _, t := range m.tasks {
 		if t.QueueID == input.QueueID && t.Position > maxPos {
@@ -102,7 +102,7 @@ func (m *MockStorage) CreateTask(ctx context.Context, input CreateTaskInput) (*T
 	return task, nil
 }
 
-func (m *MockStorage) GetTask(ctx context.Context, id int64) (*Task, error) {
+func (m *MockStorage) GetIssue(ctx context.Context, id int64) (*Task, error) {
 	t, ok := m.tasks[id]
 	if !ok {
 		return nil, ErrTaskNotFound
@@ -110,7 +110,7 @@ func (m *MockStorage) GetTask(ctx context.Context, id int64) (*Task, error) {
 	return t, nil
 }
 
-func (m *MockStorage) ListTasks(ctx context.Context, queueID int64, status *TaskStatus) ([]*Task, error) {
+func (m *MockStorage) ListIssues(ctx context.Context, queueID int64, status *TaskStatus) ([]*Task, error) {
 	tasks := make([]*Task, 0)
 	for _, t := range m.tasks {
 		if t.QueueID == queueID {
@@ -122,7 +122,7 @@ func (m *MockStorage) ListTasks(ctx context.Context, queueID int64, status *Task
 	return tasks, nil
 }
 
-func (m *MockStorage) UpdateTask(ctx context.Context, id int64, input UpdateTaskInput) (*Task, error) {
+func (m *MockStorage) UpdateIssue(ctx context.Context, id int64, input UpdateTaskInput) (*Task, error) {
 	t, ok := m.tasks[id]
 	if !ok {
 		return nil, ErrTaskNotFound
@@ -133,7 +133,7 @@ func (m *MockStorage) UpdateTask(ctx context.Context, id int64, input UpdateTask
 	return t, nil
 }
 
-func (m *MockStorage) EditTask(ctx context.Context, id int64, input EditTaskInput) (*Task, error) {
+func (m *MockStorage) EditIssue(ctx context.Context, id int64, input EditTaskInput) (*Task, error) {
 	t, ok := m.tasks[id]
 	if !ok {
 		return nil, ErrTaskNotFound
@@ -150,7 +150,7 @@ func (m *MockStorage) EditTask(ctx context.Context, id int64, input EditTaskInpu
 	return t, nil
 }
 
-func (m *MockStorage) DeleteTask(ctx context.Context, id int64) error {
+func (m *MockStorage) DeleteIssue(ctx context.Context, id int64) error {
 	if _, ok := m.tasks[id]; !ok {
 		return ErrTaskNotFound
 	}
@@ -158,7 +158,7 @@ func (m *MockStorage) DeleteTask(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (m *MockStorage) PrioritizeTask(ctx context.Context, taskID int64) (*Task, error) {
+func (m *MockStorage) PrioritizeIssue(ctx context.Context, taskID int64) (*Task, error) {
 	t, ok := m.tasks[taskID]
 	if !ok {
 		return nil, ErrTaskNotFound

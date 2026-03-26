@@ -21,28 +21,28 @@ func NewHandler(manager *queue.Manager) *Handler {
 // RegisterRoutes registers API routes
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	// Project endpoints
-	mux.HandleFunc("GET /api/projects", h.ListQueues)
-	mux.HandleFunc("POST /api/projects", h.CreateQueue)
-	mux.HandleFunc("GET /api/projects/{id}", h.GetQueue)
-	mux.HandleFunc("DELETE /api/projects/{id}", h.DeleteQueue)
-	mux.HandleFunc("GET /api/projects/{id}/issues", h.GetQueueTasks)
-	mux.HandleFunc("GET /api/projects/{id}/stats", h.GetQueueStats)
+	mux.HandleFunc("GET /api/projects", h.ListProjects)
+	mux.HandleFunc("POST /api/projects", h.CreateProject)
+	mux.HandleFunc("GET /api/projects/{id}", h.GetProject)
+	mux.HandleFunc("DELETE /api/projects/{id}", h.DeleteProject)
+	mux.HandleFunc("GET /api/projects/{id}/issues", h.GetProjectIssues)
+	mux.HandleFunc("GET /api/projects/{id}/stats", h.GetProjectStats)
 
 	// Issue endpoints
-	mux.HandleFunc("POST /api/issues", h.CreateTask)
-	mux.HandleFunc("GET /api/issues/{id}", h.GetTask)
-	mux.HandleFunc("PATCH /api/issues/{id}", h.UpdateTask)
-	mux.HandleFunc("PUT /api/issues/{id}", h.EditTask)
-	mux.HandleFunc("DELETE /api/issues/{id}", h.DeleteTask)
-	mux.HandleFunc("POST /api/issues/{id}/prioritize", h.PrioritizeTask)
-	mux.HandleFunc("POST /api/issues/{id}/start", h.StartTask)
-	mux.HandleFunc("POST /api/issues/{id}/finish", h.FinishTask)
+	mux.HandleFunc("POST /api/issues", h.CreateIssue)
+	mux.HandleFunc("GET /api/issues/{id}", h.GetIssue)
+	mux.HandleFunc("PATCH /api/issues/{id}", h.UpdateIssue)
+	mux.HandleFunc("PUT /api/issues/{id}", h.EditIssue)
+	mux.HandleFunc("DELETE /api/issues/{id}", h.DeleteIssue)
+	mux.HandleFunc("POST /api/issues/{id}/prioritize", h.PrioritizeIssue)
+	mux.HandleFunc("POST /api/issues/{id}/start", h.StartIssue)
+	mux.HandleFunc("POST /api/issues/{id}/finish", h.FinishIssue)
 }
 
 // Queue handlers
 
-func (h *Handler) ListQueues(w http.ResponseWriter, r *http.Request) {
-	queues, err := h.manager.ListQueues(r.Context())
+func (h *Handler) ListProjects(w http.ResponseWriter, r *http.Request) {
+	queues, err := h.manager.ListProjects(r.Context())
 	if err != nil {
 		h.writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -56,7 +56,7 @@ func (h *Handler) ListQueues(w http.ResponseWriter, r *http.Request) {
 
 	result := make([]QueueWithStats, len(queues))
 	for i, q := range queues {
-		stats, err := h.manager.GetQueueStats(r.Context(), q.ID)
+		stats, err := h.manager.GetProjectStats(r.Context(), q.ID)
 		if err != nil {
 			stats = &queue.QueueStats{}
 		}
@@ -66,14 +66,14 @@ func (h *Handler) ListQueues(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, result)
 }
 
-func (h *Handler) CreateQueue(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) CreateProject(w http.ResponseWriter, r *http.Request) {
 	var input queue.CreateQueueInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		h.writeError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
-	q, err := h.manager.CreateQueue(r.Context(), input)
+	q, err := h.manager.CreateProject(r.Context(), input)
 	if err != nil {
 		h.writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -82,14 +82,14 @@ func (h *Handler) CreateQueue(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusCreated, q)
 }
 
-func (h *Handler) GetQueue(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetProject(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
 		h.writeError(w, http.StatusBadRequest, "Invalid project ID")
 		return
 	}
 
-	q, err := h.manager.GetQueue(r.Context(), id)
+	q, err := h.manager.GetProject(r.Context(), id)
 	if err != nil {
 		if err == queue.ErrQueueNotFound {
 			h.writeError(w, http.StatusNotFound, "Project not found")
@@ -99,7 +99,7 @@ func (h *Handler) GetQueue(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	stats, err := h.manager.GetQueueStats(r.Context(), id)
+	stats, err := h.manager.GetProjectStats(r.Context(), id)
 	if err != nil {
 		stats = &queue.QueueStats{}
 	}
@@ -115,14 +115,14 @@ func (h *Handler) GetQueue(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, result)
 }
 
-func (h *Handler) DeleteQueue(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) DeleteProject(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
 		h.writeError(w, http.StatusBadRequest, "Invalid project ID")
 		return
 	}
 
-	if err := h.manager.DeleteQueue(r.Context(), id); err != nil {
+	if err := h.manager.DeleteProject(r.Context(), id); err != nil {
 		if err == queue.ErrQueueNotFound {
 			h.writeError(w, http.StatusNotFound, "Project not found")
 			return
@@ -134,7 +134,7 @@ func (h *Handler) DeleteQueue(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *Handler) GetQueueTasks(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetProjectIssues(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
 		h.writeError(w, http.StatusBadRequest, "Invalid project ID")
@@ -147,7 +147,7 @@ func (h *Handler) GetQueueTasks(w http.ResponseWriter, r *http.Request) {
 		status = &s
 	}
 
-	tasks, err := h.manager.ListTasks(r.Context(), id, status)
+	tasks, err := h.manager.ListIssues(r.Context(), id, status)
 	if err != nil {
 		h.writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -156,14 +156,14 @@ func (h *Handler) GetQueueTasks(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, tasks)
 }
 
-func (h *Handler) GetQueueStats(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetProjectStats(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
 		h.writeError(w, http.StatusBadRequest, "Invalid project ID")
 		return
 	}
 
-	stats, err := h.manager.GetQueueStats(r.Context(), id)
+	stats, err := h.manager.GetProjectStats(r.Context(), id)
 	if err != nil {
 		h.writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -174,14 +174,14 @@ func (h *Handler) GetQueueStats(w http.ResponseWriter, r *http.Request) {
 
 // Task handlers
 
-func (h *Handler) CreateTask(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) CreateIssue(w http.ResponseWriter, r *http.Request) {
 	var input queue.CreateTaskInput
 	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 		h.writeError(w, http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
-	task, err := h.manager.CreateTask(r.Context(), input)
+	task, err := h.manager.CreateIssue(r.Context(), input)
 	if err != nil {
 		h.writeError(w, http.StatusInternalServerError, err.Error())
 		return
@@ -190,14 +190,14 @@ func (h *Handler) CreateTask(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusCreated, task)
 }
 
-func (h *Handler) GetTask(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetIssue(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
 		h.writeError(w, http.StatusBadRequest, "Invalid issue ID")
 		return
 	}
 
-	task, err := h.manager.GetTask(r.Context(), id)
+	task, err := h.manager.GetIssue(r.Context(), id)
 	if err != nil {
 		if err == queue.ErrTaskNotFound {
 			h.writeError(w, http.StatusNotFound, "Issue not found")
@@ -210,7 +210,7 @@ func (h *Handler) GetTask(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, task)
 }
 
-func (h *Handler) UpdateTask(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) UpdateIssue(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
 		h.writeError(w, http.StatusBadRequest, "Invalid issue ID")
@@ -223,7 +223,7 @@ func (h *Handler) UpdateTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	task, err := h.manager.UpdateTask(r.Context(), id, input)
+	task, err := h.manager.UpdateIssue(r.Context(), id, input)
 	if err != nil {
 		if err == queue.ErrTaskNotFound {
 			h.writeError(w, http.StatusNotFound, "Issue not found")
@@ -240,8 +240,8 @@ func (h *Handler) UpdateTask(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, task)
 }
 
-// EditTask handles PUT /api/issues/{id} — updates content fields of a pending issue.
-func (h *Handler) EditTask(w http.ResponseWriter, r *http.Request) {
+// EditIssue handles PUT /api/issues/{id} — updates content fields of a pending issue.
+func (h *Handler) EditIssue(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
 		h.writeError(w, http.StatusBadRequest, "Invalid issue ID")
@@ -254,7 +254,7 @@ func (h *Handler) EditTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	task, err := h.manager.EditTask(r.Context(), id, input)
+	task, err := h.manager.EditIssue(r.Context(), id, input)
 	if err != nil {
 		if err == queue.ErrTaskNotFound {
 			h.writeError(w, http.StatusNotFound, "Issue not found")
@@ -271,14 +271,14 @@ func (h *Handler) EditTask(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, task)
 }
 
-func (h *Handler) DeleteTask(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) DeleteIssue(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
 		h.writeError(w, http.StatusBadRequest, "Invalid issue ID")
 		return
 	}
 
-	if err := h.manager.DeleteTask(r.Context(), id); err != nil {
+	if err := h.manager.DeleteIssue(r.Context(), id); err != nil {
 		if err == queue.ErrTaskNotFound {
 			h.writeError(w, http.StatusNotFound, "Issue not found")
 			return
@@ -290,14 +290,14 @@ func (h *Handler) DeleteTask(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func (h *Handler) PrioritizeTask(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) PrioritizeIssue(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
 		h.writeError(w, http.StatusBadRequest, "Invalid issue ID")
 		return
 	}
 
-	task, err := h.manager.PrioritizeTask(r.Context(), id)
+	task, err := h.manager.PrioritizeIssue(r.Context(), id)
 	if err != nil {
 		if err == queue.ErrTaskNotFound {
 			h.writeError(w, http.StatusNotFound, "Issue not found")
@@ -310,14 +310,14 @@ func (h *Handler) PrioritizeTask(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, task)
 }
 
-func (h *Handler) StartTask(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) StartIssue(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
 		h.writeError(w, http.StatusBadRequest, "Invalid issue ID")
 		return
 	}
 
-	task, err := h.manager.StartTask(r.Context(), id)
+	task, err := h.manager.StartIssue(r.Context(), id)
 	if err != nil {
 		if err == queue.ErrTaskNotFound {
 			h.writeError(w, http.StatusNotFound, "Issue not found")
@@ -330,14 +330,14 @@ func (h *Handler) StartTask(w http.ResponseWriter, r *http.Request) {
 	h.writeJSON(w, http.StatusOK, task)
 }
 
-func (h *Handler) FinishTask(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) FinishIssue(w http.ResponseWriter, r *http.Request) {
 	id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
 	if err != nil {
 		h.writeError(w, http.StatusBadRequest, "Invalid issue ID")
 		return
 	}
 
-	task, err := h.manager.FinishTask(r.Context(), id)
+	task, err := h.manager.FinishIssue(r.Context(), id)
 	if err != nil {
 		if err == queue.ErrTaskNotFound {
 			h.writeError(w, http.StatusNotFound, "Issue not found")

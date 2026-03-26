@@ -8,7 +8,7 @@ import (
 func TestManager_CreateQueue(t *testing.T) {
 	m := NewManager(NewMockStorage())
 
-	q, err := m.CreateQueue(context.Background(), CreateQueueInput{
+	q, err := m.CreateProject(context.Background(), CreateQueueInput{
 		Name:        "Test",
 		Description: "Desc",
 	})
@@ -23,7 +23,7 @@ func TestManager_CreateQueue(t *testing.T) {
 func TestManager_CreateQueue_EmptyName(t *testing.T) {
 	m := NewManager(NewMockStorage())
 
-	_, err := m.CreateQueue(context.Background(), CreateQueueInput{Name: ""})
+	_, err := m.CreateProject(context.Background(), CreateQueueInput{Name: ""})
 	if err == nil {
 		t.Error("Expected error for empty name")
 	}
@@ -32,7 +32,7 @@ func TestManager_CreateQueue_EmptyName(t *testing.T) {
 func TestManager_CreateTask_EmptyTitle(t *testing.T) {
 	m := NewManager(NewMockStorage())
 
-	_, err := m.CreateTask(context.Background(), CreateTaskInput{
+	_, err := m.CreateIssue(context.Background(), CreateTaskInput{
 		QueueID: 1,
 		Title:   "",
 	})
@@ -45,14 +45,14 @@ func TestManager_TaskStatusTransitions(t *testing.T) {
 	m := NewManager(NewMockStorage())
 
 	// Create queue and task
-	q, _ := m.CreateQueue(context.Background(), CreateQueueInput{Name: "Test"})
-	task, _ := m.CreateTask(context.Background(), CreateTaskInput{
+	q, _ := m.CreateProject(context.Background(), CreateQueueInput{Name: "Test"})
+	task, _ := m.CreateIssue(context.Background(), CreateTaskInput{
 		QueueID: q.ID,
 		Title:   "Task",
 	})
 
 	// Start task
-	task, err := m.StartTask(context.Background(), task.ID)
+	task, err := m.StartIssue(context.Background(), task.ID)
 	if err != nil {
 		t.Fatalf("Failed to start task: %v", err)
 	}
@@ -61,7 +61,7 @@ func TestManager_TaskStatusTransitions(t *testing.T) {
 	}
 
 	// Finish task
-	task, err = m.FinishTask(context.Background(), task.ID)
+	task, err = m.FinishIssue(context.Background(), task.ID)
 	if err != nil {
 		t.Fatalf("Failed to finish task: %v", err)
 	}
@@ -70,7 +70,7 @@ func TestManager_TaskStatusTransitions(t *testing.T) {
 	}
 
 	// Reset task
-	task, err = m.ResetTask(context.Background(), task.ID)
+	task, err = m.ResetIssue(context.Background(), task.ID)
 	if err != nil {
 		t.Fatalf("Failed to reset task: %v", err)
 	}
@@ -82,14 +82,14 @@ func TestManager_TaskStatusTransitions(t *testing.T) {
 func TestManager_InvalidStatus(t *testing.T) {
 	m := NewManager(NewMockStorage())
 
-	q, _ := m.CreateQueue(context.Background(), CreateQueueInput{Name: "Test"})
-	task, _ := m.CreateTask(context.Background(), CreateTaskInput{
+	q, _ := m.CreateProject(context.Background(), CreateQueueInput{Name: "Test"})
+	task, _ := m.CreateIssue(context.Background(), CreateTaskInput{
 		QueueID: q.ID,
 		Title:   "Task",
 	})
 
 	invalidStatus := TaskStatus("invalid")
-	_, err := m.UpdateTask(context.Background(), task.ID, UpdateTaskInput{Status: &invalidStatus})
+	_, err := m.UpdateIssue(context.Background(), task.ID, UpdateTaskInput{Status: &invalidStatus})
 	if err != ErrInvalidStatus {
 		t.Errorf("Expected ErrInvalidStatus, got %v", err)
 	}

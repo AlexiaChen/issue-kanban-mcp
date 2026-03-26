@@ -25,8 +25,8 @@ func TestSQLiteStorage(t *testing.T) {
 
 	ctx := context.Background()
 
-	t.Run("CreateQueue", func(t *testing.T) {
-		q, err := store.CreateQueue(ctx, queue.CreateQueueInput{
+	t.Run("CreateProject", func(t *testing.T) {
+		q, err := store.CreateProject(ctx, queue.CreateQueueInput{
 			Name:        "Test Queue",
 			Description: "Test Description",
 		})
@@ -41,8 +41,8 @@ func TestSQLiteStorage(t *testing.T) {
 		}
 	})
 
-	t.Run("GetQueue", func(t *testing.T) {
-		q, err := store.GetQueue(ctx, 1)
+	t.Run("GetProject", func(t *testing.T) {
+		q, err := store.GetProject(ctx, 1)
 		if err != nil {
 			t.Fatalf("Failed to get queue: %v", err)
 		}
@@ -52,14 +52,14 @@ func TestSQLiteStorage(t *testing.T) {
 	})
 
 	t.Run("GetQueueNotFound", func(t *testing.T) {
-		_, err := store.GetQueue(ctx, 999)
+		_, err := store.GetProject(ctx, 999)
 		if err != queue.ErrQueueNotFound {
 			t.Errorf("Expected ErrQueueNotFound, got %v", err)
 		}
 	})
 
-	t.Run("ListQueues", func(t *testing.T) {
-		queues, err := store.ListQueues(ctx)
+	t.Run("ListProjects", func(t *testing.T) {
+		queues, err := store.ListProjects(ctx)
 		if err != nil {
 			t.Fatalf("Failed to list queues: %v", err)
 		}
@@ -68,8 +68,8 @@ func TestSQLiteStorage(t *testing.T) {
 		}
 	})
 
-	t.Run("CreateTask", func(t *testing.T) {
-		task, err := store.CreateTask(ctx, queue.CreateTaskInput{
+	t.Run("CreateIssue", func(t *testing.T) {
+		task, err := store.CreateIssue(ctx, queue.CreateTaskInput{
 			QueueID:     1,
 			Title:       "Test Task",
 			Description: "Task Description",
@@ -89,8 +89,8 @@ func TestSQLiteStorage(t *testing.T) {
 		}
 	})
 
-	t.Run("GetTask", func(t *testing.T) {
-		task, err := store.GetTask(ctx, 1)
+	t.Run("GetIssue", func(t *testing.T) {
+		task, err := store.GetIssue(ctx, 1)
 		if err != nil {
 			t.Fatalf("Failed to get task: %v", err)
 		}
@@ -99,8 +99,8 @@ func TestSQLiteStorage(t *testing.T) {
 		}
 	})
 
-	t.Run("ListTasks", func(t *testing.T) {
-		tasks, err := store.ListTasks(ctx, 1, nil)
+	t.Run("ListIssues", func(t *testing.T) {
+		tasks, err := store.ListIssues(ctx, 1, nil)
 		if err != nil {
 			t.Fatalf("Failed to list tasks: %v", err)
 		}
@@ -110,7 +110,7 @@ func TestSQLiteStorage(t *testing.T) {
 	})
 
 	t.Run("ListTasksWithStatus", func(t *testing.T) {
-		tasks, err := store.ListTasks(ctx, 1, ptrStatus(queue.StatusPending))
+		tasks, err := store.ListIssues(ctx, 1, ptrStatus(queue.StatusPending))
 		if err != nil {
 			t.Fatalf("Failed to list tasks: %v", err)
 		}
@@ -121,7 +121,7 @@ func TestSQLiteStorage(t *testing.T) {
 
 	t.Run("UpdateTaskStatusToDoing", func(t *testing.T) {
 		status := queue.StatusDoing
-		task, err := store.UpdateTask(ctx, 1, queue.UpdateTaskInput{Status: &status})
+		task, err := store.UpdateIssue(ctx, 1, queue.UpdateTaskInput{Status: &status})
 		if err != nil {
 			t.Fatalf("Failed to update task: %v", err)
 		}
@@ -135,7 +135,7 @@ func TestSQLiteStorage(t *testing.T) {
 
 	t.Run("UpdateTaskStatusToFinished", func(t *testing.T) {
 		status := queue.StatusFinished
-		task, err := store.UpdateTask(ctx, 1, queue.UpdateTaskInput{Status: &status})
+		task, err := store.UpdateIssue(ctx, 1, queue.UpdateTaskInput{Status: &status})
 		if err != nil {
 			t.Fatalf("Failed to update task: %v", err)
 		}
@@ -147,8 +147,8 @@ func TestSQLiteStorage(t *testing.T) {
 		}
 	})
 
-	t.Run("GetQueueStats", func(t *testing.T) {
-		stats, err := store.GetQueueStats(ctx, 1)
+	t.Run("GetProjectStats", func(t *testing.T) {
+		stats, err := store.GetProjectStats(ctx, 1)
 		if err != nil {
 			t.Fatalf("Failed to get stats: %v", err)
 		}
@@ -160,9 +160,9 @@ func TestSQLiteStorage(t *testing.T) {
 		}
 	})
 
-	t.Run("PrioritizeTask", func(t *testing.T) {
+	t.Run("PrioritizeIssue", func(t *testing.T) {
 		// Create a low-priority task (will be at the front in queue position order)
-		taskLow, err := store.CreateTask(ctx, queue.CreateTaskInput{
+		taskLow, err := store.CreateIssue(ctx, queue.CreateTaskInput{
 			QueueID:  1,
 			Title:    "Low Priority Task",
 			Priority: queue.PriorityLow,
@@ -172,7 +172,7 @@ func TestSQLiteStorage(t *testing.T) {
 		}
 
 		// Create a medium-priority task (will be behind low-priority in queue)
-		taskMedium, err := store.CreateTask(ctx, queue.CreateTaskInput{
+		taskMedium, err := store.CreateIssue(ctx, queue.CreateTaskInput{
 			QueueID:  1,
 			Title:    "Medium Priority Task",
 			Priority: queue.PriorityMedium,
@@ -182,7 +182,7 @@ func TestSQLiteStorage(t *testing.T) {
 		}
 
 		// Prioritize the medium task to jump ahead of the low-priority task
-		task, err := store.PrioritizeTask(ctx, taskMedium.ID)
+		task, err := store.PrioritizeIssue(ctx, taskMedium.ID)
 		if err != nil {
 			t.Fatalf("Failed to prioritize task: %v", err)
 		}
@@ -196,25 +196,25 @@ func TestSQLiteStorage(t *testing.T) {
 		}
 	})
 
-	t.Run("DeleteTask", func(t *testing.T) {
-		err := store.DeleteTask(ctx, 1)
+	t.Run("DeleteIssue", func(t *testing.T) {
+		err := store.DeleteIssue(ctx, 1)
 		if err != nil {
 			t.Fatalf("Failed to delete task: %v", err)
 		}
 
-		_, err = store.GetTask(ctx, 1)
+		_, err = store.GetIssue(ctx, 1)
 		if err != queue.ErrTaskNotFound {
 			t.Errorf("Expected ErrTaskNotFound, got %v", err)
 		}
 	})
 
-	t.Run("DeleteQueue", func(t *testing.T) {
-		err := store.DeleteQueue(ctx, 1)
+	t.Run("DeleteProject", func(t *testing.T) {
+		err := store.DeleteProject(ctx, 1)
 		if err != nil {
 			t.Fatalf("Failed to delete queue: %v", err)
 		}
 
-		_, err = store.GetQueue(ctx, 1)
+		_, err = store.GetProject(ctx, 1)
 		if err != queue.ErrQueueNotFound {
 			t.Errorf("Expected ErrQueueNotFound, got %v", err)
 		}

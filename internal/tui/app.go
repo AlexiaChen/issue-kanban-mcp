@@ -19,8 +19,8 @@ type viewState int
 
 const (
 	viewLoading viewState = iota
-	viewQueueList
-	viewTaskList
+	viewProjectList
+	viewKanbanBoard
 	viewCreateQueue
 	viewCreateTask
 	viewEditTask
@@ -28,8 +28,8 @@ const (
 )
 
 type (
-	queuesLoadedMsg struct{ queues []apiclient.QueueWithStats }
-	tasksLoadedMsg  struct{ tasks []queue.Task }
+	projectsLoadedMsg struct{ queues []apiclient.QueueWithStats }
+	issuesLoadedMsg  struct{ tasks []queue.Task }
 	actionDoneMsg   struct{}
 	errMsg          struct{ err error }
 	tickMsg         time.Time
@@ -77,33 +77,33 @@ func tickCmd() tea.Cmd {
 	})
 }
 
-func (a App) loadQueuesCmd() tea.Cmd {
+func (a App) loadProjectsCmd() tea.Cmd {
 	return func() tea.Msg {
-		queues, err := a.client.ListQueues(context.Background())
+		queues, err := a.client.ListProjects(context.Background())
 		if err != nil {
 			return errMsg{err}
 		}
-		return queuesLoadedMsg{queues}
+		return projectsLoadedMsg{queues}
 	}
 }
 
-func (a App) loadTasksCmd() tea.Cmd {
+func (a App) loadIssuesCmd() tea.Cmd {
 	if a.currentQueue == nil {
 		return nil
 	}
 	queueID := a.currentQueue.ID
 	return func() tea.Msg {
-		tasks, err := a.client.ListTasks(context.Background(), queueID, "")
+		tasks, err := a.client.ListIssues(context.Background(), queueID, "")
 		if err != nil {
 			return errMsg{err}
 		}
-		return tasksLoadedMsg{tasks}
+		return issuesLoadedMsg{tasks}
 	}
 }
 
 // Init kicks off queue loading and the auto-refresh ticker.
 func (a App) Init() tea.Cmd {
-	return tea.Batch(a.loadQueuesCmd(), tickCmd())
+	return tea.Batch(a.loadProjectsCmd(), tickCmd())
 }
 
 // Update handles messages and returns the updated model and next command.
@@ -114,10 +114,10 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		a.height = msg.Height
 		return a, nil
 
-	case queuesLoadedMsg:
+	case projectsLoadedMsg:
 		a.queues = msg.queues
 		if a.state == viewLoading {
-			a.state = viewQueueList
+			a.state = viewProjectList
 		}
 		// Refresh the currentQueue pointer into the new slice.
 		if a.currentQueue != nil {
@@ -130,17 +130,17 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return a, nil
 
-	case tasksLoadedMsg:
+	case issuesLoadedMsg:
 		a.tasks = msg.tasks
 		return a, nil
 
 	case actionDoneMsg:
 		a.isError = false
 		switch a.state {
-		case viewQueueList:
-			return a, a.loadQueuesCmd()
-		case viewTaskList:
-			return a, tea.Batch(a.loadTasksCmd(), a.loadQueuesCmd())
+		case viewProjectList:
+			return a, a.loadProjectsCmd()
+		case viewKanbanBoard:
+			return a, tea.Batch(a.loadIssuesCmd(), a.loadProjectsCmd())
 		}
 		return a, nil
 
@@ -152,11 +152,11 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tickMsg:
 		var cmd tea.Cmd
 		switch a.state {
-		case viewQueueList:
-			cmd = a.loadQueuesCmd()
-		case viewTaskList:
+		case viewProjectList:
+			cmd = a.loadProjectsCmd()
+		case viewKanbanBoard:
 			// Refresh both tasks and queue stats so the header counters stay current.
-			cmd = tea.Batch(a.loadTasksCmd(), a.loadQueuesCmd())
+			cmd = tea.Batch(a.loadIssuesCmd(), a.loadProjectsCmd())
 		}
 		return a, tea.Batch(cmd, tickCmd())
 
@@ -172,7 +172,7 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			a.inputs[i], cmd = a.inputs[i].Update(msg)
 			cmds = append(cmds, cmd)
 		}
-		if a.isTaskForm() {
+		if a.isIssueForm() {
 			var cmd tea.Cmd
 			a.descInput, cmd = a.descInput.Update(msg)
 			cmds = append(cmds, cmd)
@@ -185,10 +185,10 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (a App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch a.state {
-	case viewQueueList:
-		return a.handleQueueListKey(msg)
-	case viewTaskList:
-		return a.handleTaskListKey(msg)
+	case viewProjectList:
+		return a.handleProjectListKey(msg)
+	case viewKanbanBoard:
+		return a.handleIssueListKey(msg)
 	case viewCreateQueue, viewCreateTask, viewEditTask:
 		return a.handleFormKey(msg)
 	case viewConfirmDelete:
@@ -197,7 +197,7 @@ func (a App) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	return a, nil
 }
 
-func (a App) handleQueueListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (a App) handleProjectListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "j", "down":
 		if a.queueIdx < len(a.queues)-1 {
@@ -211,15 +211,15 @@ func (a App) handleQueueListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if len(a.queues) > 0 && a.queueIdx < len(a.queues) {
 			q := a.queues[a.queueIdx]
 			a.currentQueue = &q
-			a.state = viewTaskList
+			a.state = viewKanbanBoard
 			a.taskIdx = 0
 			a.statusMsg = ""
-			return a, a.loadTasksCmd()
+			return a, a.loadIssuesCmd()
 		}
 	case "n":
 		a.formMode = "queue"
 		a.state = viewCreateQueue
-		a.inputs = makeQueueInputs()
+		a.inputs = makeProjectInputs()
 		a.focusIdx = 0
 		a.statusMsg = ""
 		cmd := a.inputs[0].Focus()
@@ -232,15 +232,15 @@ func (a App) handleQueueListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case "R":
 		a.statusMsg = ""
-		return a, a.loadQueuesCmd()
+		return a, a.loadProjectsCmd()
 	case "q", "ctrl+c":
 		return a, tea.Quit
 	}
 	return a, nil
 }
 
-func (a App) handleTaskListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	groups := a.groupedTasks()
+func (a App) handleIssueListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	groups := a.groupedIssues()
 	currentCol := groups[a.kanbanColIdx]
 
 	switch msg.String() {
@@ -265,25 +265,25 @@ func (a App) handleTaskListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "n":
 		a.formMode = "task"
 		a.state = viewCreateTask
-		a.inputs = makeTaskInputs()
+		a.inputs = makeIssueInputs()
 		a.descInput = newDescInput(a.effectiveWidth())
 		a.focusIdx = 0
 		a.statusMsg = ""
 		cmd := a.inputs[0].Focus()
 		return a, cmd
 	case "d":
-		t := a.selectedKanbanTask()
+		t := a.selectedKanbanIssue()
 		if t != nil {
 			a.pendingDelete = pendingDeleteInfo{kind: "issue", id: t.ID, name: t.Title}
 			a.state = viewConfirmDelete
 		}
 	case "e":
-		t := a.selectedKanbanTask()
+		t := a.selectedKanbanIssue()
 		if t != nil && t.Status == queue.StatusPending {
 			a.editingTask = t
 			a.formMode = "edit"
 			a.state = viewEditTask
-			a.inputs = makeEditTaskInputs(*t)
+			a.inputs = makeEditIssueInputs(*t)
 			a.descInput = newDescInput(a.effectiveWidth())
 			a.descInput.SetValue(t.Description)
 			a.focusIdx = 0
@@ -292,18 +292,18 @@ func (a App) handleTaskListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return a, cmd
 		}
 	case "p":
-		t := a.selectedKanbanTask()
+		t := a.selectedKanbanIssue()
 		if t != nil && t.Status == queue.StatusPending {
-			return a, a.doPrioritizeTask(t.ID)
+			return a, a.doPrioritizeIssue(t.ID)
 		}
 	case "R":
 		a.statusMsg = ""
-		return a, tea.Batch(a.loadTasksCmd(), a.loadQueuesCmd())
+		return a, tea.Batch(a.loadIssuesCmd(), a.loadProjectsCmd())
 	case "q", "esc":
-		a.state = viewQueueList
+		a.state = viewProjectList
 		a.currentQueue = nil
 		a.statusMsg = ""
-		return a, a.loadQueuesCmd()
+		return a, a.loadProjectsCmd()
 	}
 	return a, nil
 }
@@ -314,17 +314,17 @@ func (a App) handleFormKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return a.submitForm()
 	case tea.KeyEsc:
 		if a.state == viewCreateQueue {
-			a.state = viewQueueList
+			a.state = viewProjectList
 		} else if a.state == viewEditTask {
-			a.state = viewTaskList
+			a.state = viewKanbanBoard
 			a.editingTask = nil
 		} else {
-			a.state = viewTaskList
+			a.state = viewKanbanBoard
 		}
 		a.statusMsg = ""
 		return a, nil
 	case tea.KeyTab:
-		if a.isTaskForm() {
+		if a.isIssueForm() {
 			// Blur current field (inline to avoid value-receiver copy loss).
 			if a.focusIdx == 1 {
 				a.descInput.Blur()
@@ -345,7 +345,7 @@ func (a App) handleFormKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		cmd := a.inputs[a.focusIdx].Focus()
 		return a, cmd
 	case tea.KeyShiftTab:
-		if a.isTaskForm() {
+		if a.isIssueForm() {
 			if a.focusIdx == 1 {
 				a.descInput.Blur()
 			} else {
@@ -364,14 +364,14 @@ func (a App) handleFormKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		cmd := a.inputs[a.focusIdx].Focus()
 		return a, cmd
 	default:
-		if a.isTaskForm() && a.focusIdx == 1 {
+		if a.isIssueForm() && a.focusIdx == 1 {
 			var cmd tea.Cmd
 			a.descInput, cmd = a.descInput.Update(msg)
 			return a, cmd
 		}
 		var cmd tea.Cmd
 		idx := a.taskInputIdx()
-		if !a.isTaskForm() {
+		if !a.isIssueForm() {
 			idx = a.focusIdx
 		}
 		a.inputs[idx], cmd = a.inputs[idx].Update(msg)
@@ -379,8 +379,8 @@ func (a App) handleFormKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 }
 
-// isTaskForm reports whether the current form uses a textarea for description.
-func (a App) isTaskForm() bool {
+// isIssueForm reports whether the current form uses a textarea for description.
+func (a App) isIssueForm() bool {
 	return a.formMode == "task" || a.formMode == "edit"
 }
 
@@ -399,9 +399,9 @@ func (a App) handleConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return a.doDelete()
 	case "n", "esc":
 		if a.pendingDelete.kind == "project" {
-			a.state = viewQueueList
+			a.state = viewProjectList
 		} else {
-			a.state = viewTaskList
+			a.state = viewKanbanBoard
 		}
 	}
 	return a, nil
@@ -417,9 +417,9 @@ func (a App) submitForm() (tea.Model, tea.Cmd) {
 		}
 		desc := strings.TrimSpace(a.inputs[1].Value())
 		input := queue.CreateQueueInput{Name: name, Description: desc}
-		a.state = viewQueueList
+		a.state = viewProjectList
 		a.statusMsg = ""
-		return a, a.doCreateQueue(input)
+		return a, a.doCreateProject(input)
 	}
 
 	if a.state == viewCreateTask {
@@ -452,14 +452,14 @@ func (a App) submitForm() (tea.Model, tea.Cmd) {
 			Description: desc,
 			Priority:    priority,
 		}
-		a.state = viewTaskList
+		a.state = viewKanbanBoard
 		a.statusMsg = ""
-		return a, a.doCreateTask(input)
+		return a, a.doCreateIssue(input)
 	}
 
 	if a.state == viewEditTask {
 		if a.editingTask == nil {
-			a.state = viewTaskList
+			a.state = viewKanbanBoard
 			return a, nil
 		}
 		title := strings.TrimSpace(a.inputs[0].Value())
@@ -481,28 +481,28 @@ func (a App) submitForm() (tea.Model, tea.Cmd) {
 			priority = p
 		}
 		id := a.editingTask.ID
-		a.state = viewTaskList
+		a.state = viewKanbanBoard
 		a.editingTask = nil
 		a.statusMsg = ""
-		return a, a.doEditTask(id, title, desc, priority)
+		return a, a.doEditIssue(id, title, desc, priority)
 	}
 	return a, nil
 }
 
 // --- async commands ---
 
-func (a App) doCreateQueue(input queue.CreateQueueInput) tea.Cmd {
+func (a App) doCreateProject(input queue.CreateQueueInput) tea.Cmd {
 	return func() tea.Msg {
-		if _, err := a.client.CreateQueue(context.Background(), input); err != nil {
+		if _, err := a.client.CreateProject(context.Background(), input); err != nil {
 			return errMsg{err}
 		}
 		return actionDoneMsg{}
 	}
 }
 
-func (a App) doCreateTask(input queue.CreateTaskInput) tea.Cmd {
+func (a App) doCreateIssue(input queue.CreateTaskInput) tea.Cmd {
 	return func() tea.Msg {
-		if _, err := a.client.CreateTask(context.Background(), input); err != nil {
+		if _, err := a.client.CreateIssue(context.Background(), input); err != nil {
 			return errMsg{err}
 		}
 		return actionDoneMsg{}
@@ -513,16 +513,16 @@ func (a App) doDelete() (tea.Model, tea.Cmd) {
 	kind := a.pendingDelete.kind
 	id := a.pendingDelete.id
 	if kind == "project" {
-		a.state = viewQueueList
+		a.state = viewProjectList
 	} else {
-		a.state = viewTaskList
+		a.state = viewKanbanBoard
 	}
 	return a, func() tea.Msg {
 		var err error
 		if kind == "project" {
-			err = a.client.DeleteQueue(context.Background(), id)
+			err = a.client.DeleteProject(context.Background(), id)
 		} else {
-			err = a.client.DeleteTask(context.Background(), id)
+			err = a.client.DeleteIssue(context.Background(), id)
 		}
 		if err != nil {
 			return errMsg{err}
@@ -531,18 +531,18 @@ func (a App) doDelete() (tea.Model, tea.Cmd) {
 	}
 }
 
-func (a App) doEditTask(id int64, title, desc string, priority queue.Priority) tea.Cmd {
+func (a App) doEditIssue(id int64, title, desc string, priority queue.Priority) tea.Cmd {
 	return func() tea.Msg {
-		if _, err := a.client.EditTask(context.Background(), id, &title, &desc, &priority); err != nil {
+		if _, err := a.client.EditIssue(context.Background(), id, &title, &desc, &priority); err != nil {
 			return errMsg{err}
 		}
 		return actionDoneMsg{}
 	}
 }
 
-func (a App) doPrioritizeTask(id int64) tea.Cmd {
+func (a App) doPrioritizeIssue(id int64) tea.Cmd {
 	return func() tea.Msg {
-		if _, err := a.client.PrioritizeTask(context.Background(), id); err != nil {
+		if _, err := a.client.PrioritizeIssue(context.Background(), id); err != nil {
 			return errMsg{err}
 		}
 		return actionDoneMsg{}
@@ -556,10 +556,10 @@ func (a App) View() string {
 	switch a.state {
 	case viewLoading:
 		return "\n  " + helpStyle.Render("Loading...")
-	case viewQueueList:
-		return a.viewQueueList()
-	case viewTaskList:
-		return a.viewTaskList()
+	case viewProjectList:
+		return a.viewProjectList()
+	case viewKanbanBoard:
+		return a.viewKanbanBoard()
 	case viewCreateQueue, viewCreateTask, viewEditTask:
 		return a.viewCreateForm()
 	case viewConfirmDelete:
@@ -575,7 +575,7 @@ func (a App) effectiveWidth() int {
 	return a.width
 }
 
-func (a App) viewQueueList() string {
+func (a App) viewProjectList() string {
 	w := a.effectiveWidth()
 	header := headerStyle.Width(w).Render(titleStyle.Render("📋 Issue Kanban Manager"))
 
@@ -608,8 +608,8 @@ func (a App) viewQueueList() string {
 	return sb.String()
 }
 
-// groupedTasks groups a.tasks by status into [0]=pending, [1]=doing, [2]=finished.
-func (a App) groupedTasks() [3][]queue.Task {
+// groupedIssues groups a.tasks by status into [0]=pending, [1]=doing, [2]=finished.
+func (a App) groupedIssues() [3][]queue.Task {
 	var groups [3][]queue.Task
 	for _, t := range a.tasks {
 		switch t.Status {
@@ -624,9 +624,9 @@ func (a App) groupedTasks() [3][]queue.Task {
 	return groups
 }
 
-// selectedKanbanTask returns the currently focused task in the kanban board.
-func (a App) selectedKanbanTask() *queue.Task {
-	groups := a.groupedTasks()
+// selectedKanbanIssue returns the currently focused task in the kanban board.
+func (a App) selectedKanbanIssue() *queue.Task {
+	groups := a.groupedIssues()
 	col := groups[a.kanbanColIdx]
 	if a.taskIdx >= 0 && a.taskIdx < len(col) {
 		t := col[a.taskIdx]
@@ -635,7 +635,7 @@ func (a App) selectedKanbanTask() *queue.Task {
 	return nil
 }
 
-func (a App) viewTaskList() string {
+func (a App) viewKanbanBoard() string {
 	w := a.effectiveWidth()
 	queueName := ""
 	queueStats := ""
@@ -646,7 +646,7 @@ func (a App) viewTaskList() string {
 	}
 	header := headerStyle.Width(w).Render(titleStyle.Render("📋 " + queueName + queueStats))
 
-	groups := a.groupedTasks()
+	groups := a.groupedIssues()
 	colNames := [3]string{"📋 PENDING", "⚡ DOING", "✅ FINISHED"}
 	colColors := [3]lipgloss.Color{"#FCD34D", "#67E8F9", "#6EE7B7"}
 	focusedBorderColors := [3]lipgloss.Color{"#F59E0B", "#22D3EE", "#34D399"}
@@ -743,14 +743,14 @@ func (a App) viewCreateForm() string {
 		// For task forms, inputs[0]=title, inputs[1]=priority.
 		// Description is handled as a textarea injected after title.
 		var labelIdx int
-		if a.isTaskForm() && i == 1 {
+		if a.isIssueForm() && i == 1 {
 			labelIdx = 2 // "Priority:" is at index 2 of the 3-element labels slice
 		} else {
 			labelIdx = i
 		}
 		label := labelStyle.Render(fmt.Sprintf("  %-14s", labels[labelIdx]))
 		sb.WriteString(label + inp.View() + "\n\n")
-		if a.isTaskForm() && i == 0 {
+		if a.isIssueForm() && i == 0 {
 			// render description textarea between title and priority
 			descLabel := labelStyle.Render(fmt.Sprintf("  %-14s", labels[1]))
 			sb.WriteString(descLabel + "\n")
@@ -793,7 +793,7 @@ func (a App) statusBar() string {
 	return "  " + successStyle.Render(a.statusMsg)
 }
 
-func taskStatusLabel(status queue.TaskStatus) string {
+func issueStatusLabel(status queue.TaskStatus) string {
 	switch status {
 	case queue.StatusPending:
 		return pendingBadge.Render("[pending]")
@@ -806,7 +806,7 @@ func taskStatusLabel(status queue.TaskStatus) string {
 	}
 }
 
-func makeQueueInputs() []textinput.Model {
+func makeProjectInputs() []textinput.Model {
 	name := textinput.New()
 	name.Placeholder = "Project name (required)"
 	name.CharLimit = 100
@@ -818,7 +818,7 @@ func makeQueueInputs() []textinput.Model {
 	return []textinput.Model{name, desc}
 }
 
-func makeTaskInputs() []textinput.Model {
+func makeIssueInputs() []textinput.Model {
 	title := textinput.New()
 	title.Placeholder = "Issue title (required)"
 	title.CharLimit = 200
@@ -830,7 +830,7 @@ func makeTaskInputs() []textinput.Model {
 	return []textinput.Model{title, prio}
 }
 
-func makeEditTaskInputs(t queue.Task) []textinput.Model {
+func makeEditIssueInputs(t queue.Task) []textinput.Model {
 	title := textinput.New()
 	title.Placeholder = "Issue title (required)"
 	title.CharLimit = 200

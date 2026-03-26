@@ -24,7 +24,7 @@ func TestAPI_ListQueues(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/queues", nil)
 	rec := httptest.NewRecorder()
 
-	handler.ListQueues(rec, req)
+	handler.ListProjects(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", rec.Code)
@@ -39,7 +39,7 @@ func TestAPI_CreateQueue(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 
-	handler.CreateQueue(rec, req)
+	handler.CreateProject(rec, req)
 
 	if rec.Code != http.StatusCreated {
 		t.Errorf("Expected status 201, got %d: %s", rec.Code, rec.Body.String())
@@ -62,7 +62,7 @@ func TestAPI_CreateQueue_InvalidBody(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 
-	handler.CreateQueue(rec, req)
+	handler.CreateProject(rec, req)
 
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("Expected status 400, got %d", rec.Code)
@@ -73,7 +73,7 @@ func TestAPI_GetQueue(t *testing.T) {
 	handler, manager, _ := setupTestAPI(t)
 
 	// Create a queue first
-	manager.CreateQueue(context.Background(), queue.CreateQueueInput{
+	manager.CreateProject(context.Background(), queue.CreateQueueInput{
 		Name: "Test",
 	})
 
@@ -81,7 +81,7 @@ func TestAPI_GetQueue(t *testing.T) {
 	req.SetPathValue("id", "1")
 	rec := httptest.NewRecorder()
 
-	handler.GetQueue(rec, req)
+	handler.GetProject(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", rec.Code)
@@ -103,7 +103,7 @@ func TestAPI_GetQueue_InvalidID(t *testing.T) {
 	req.SetPathValue("id", "invalid")
 	rec := httptest.NewRecorder()
 
-	handler.GetQueue(rec, req)
+	handler.GetProject(rec, req)
 
 	if rec.Code != http.StatusBadRequest {
 		t.Errorf("Expected status 400, got %d", rec.Code)
@@ -117,7 +117,7 @@ func TestAPI_GetQueue_NotFound(t *testing.T) {
 	req.SetPathValue("id", "999")
 	rec := httptest.NewRecorder()
 
-	handler.GetQueue(rec, req)
+	handler.GetProject(rec, req)
 
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("Expected status 404, got %d", rec.Code)
@@ -128,7 +128,7 @@ func TestAPI_DeleteQueue(t *testing.T) {
 	handler, manager, _ := setupTestAPI(t)
 
 	// Create a queue first
-	manager.CreateQueue(context.Background(), queue.CreateQueueInput{
+	manager.CreateProject(context.Background(), queue.CreateQueueInput{
 		Name: "Test",
 	})
 
@@ -136,7 +136,7 @@ func TestAPI_DeleteQueue(t *testing.T) {
 	req.SetPathValue("id", "1")
 	rec := httptest.NewRecorder()
 
-	handler.DeleteQueue(rec, req)
+	handler.DeleteProject(rec, req)
 
 	if rec.Code != http.StatusNoContent {
 		t.Errorf("Expected status 204, got %d", rec.Code)
@@ -147,7 +147,7 @@ func TestAPI_CreateTask(t *testing.T) {
 	handler, manager, _ := setupTestAPI(t)
 
 	// Create a queue first
-	manager.CreateQueue(context.Background(), queue.CreateQueueInput{
+	manager.CreateProject(context.Background(), queue.CreateQueueInput{
 		Name: "Test",
 	})
 
@@ -156,7 +156,7 @@ func TestAPI_CreateTask(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 
-	handler.CreateTask(rec, req)
+	handler.CreateIssue(rec, req)
 
 	if rec.Code != http.StatusCreated {
 		t.Errorf("Expected status 201, got %d: %s", rec.Code, rec.Body.String())
@@ -175,8 +175,8 @@ func TestAPI_UpdateTask(t *testing.T) {
 	handler, manager, _ := setupTestAPI(t)
 
 	// Create queue and task
-	q, _ := manager.CreateQueue(context.Background(), queue.CreateQueueInput{Name: "Test"})
-	manager.CreateTask(context.Background(), queue.CreateTaskInput{
+	q, _ := manager.CreateProject(context.Background(), queue.CreateQueueInput{Name: "Test"})
+	manager.CreateIssue(context.Background(), queue.CreateTaskInput{
 		QueueID: q.ID,
 		Title:   "Task",
 	})
@@ -187,7 +187,7 @@ func TestAPI_UpdateTask(t *testing.T) {
 	req.SetPathValue("id", "1")
 	rec := httptest.NewRecorder()
 
-	handler.UpdateTask(rec, req)
+	handler.UpdateIssue(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d: %s", rec.Code, rec.Body.String())
@@ -206,8 +206,8 @@ func TestAPI_DeleteTask(t *testing.T) {
 	handler, manager, _ := setupTestAPI(t)
 
 	// Create queue and task
-	q, _ := manager.CreateQueue(context.Background(), queue.CreateQueueInput{Name: "Test"})
-	manager.CreateTask(context.Background(), queue.CreateTaskInput{
+	q, _ := manager.CreateProject(context.Background(), queue.CreateQueueInput{Name: "Test"})
+	manager.CreateIssue(context.Background(), queue.CreateTaskInput{
 		QueueID: q.ID,
 		Title:   "Task",
 	})
@@ -216,7 +216,7 @@ func TestAPI_DeleteTask(t *testing.T) {
 	req.SetPathValue("id", "1")
 	rec := httptest.NewRecorder()
 
-	handler.DeleteTask(rec, req)
+	handler.DeleteIssue(rec, req)
 
 	if rec.Code != http.StatusNoContent {
 		t.Errorf("Expected status 204, got %d", rec.Code)
@@ -227,8 +227,8 @@ func TestAPI_PrioritizeTask(t *testing.T) {
 	handler, manager, _ := setupTestAPI(t)
 
 	// Create queue and task
-	q, _ := manager.CreateQueue(context.Background(), queue.CreateQueueInput{Name: "Test"})
-	manager.CreateTask(context.Background(), queue.CreateTaskInput{
+	q, _ := manager.CreateProject(context.Background(), queue.CreateQueueInput{Name: "Test"})
+	manager.CreateIssue(context.Background(), queue.CreateTaskInput{
 		QueueID: q.ID,
 		Title:   "Task",
 	})
@@ -239,7 +239,7 @@ func TestAPI_PrioritizeTask(t *testing.T) {
 	req.SetPathValue("id", "1")
 	rec := httptest.NewRecorder()
 
-	handler.PrioritizeTask(rec, req)
+	handler.PrioritizeIssue(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d: %s", rec.Code, rec.Body.String())
@@ -250,8 +250,8 @@ func TestAPI_StartTask(t *testing.T) {
 	handler, manager, _ := setupTestAPI(t)
 
 	// Create queue and task
-	q, _ := manager.CreateQueue(context.Background(), queue.CreateQueueInput{Name: "Test"})
-	manager.CreateTask(context.Background(), queue.CreateTaskInput{
+	q, _ := manager.CreateProject(context.Background(), queue.CreateQueueInput{Name: "Test"})
+	manager.CreateIssue(context.Background(), queue.CreateTaskInput{
 		QueueID: q.ID,
 		Title:   "Task",
 	})
@@ -260,7 +260,7 @@ func TestAPI_StartTask(t *testing.T) {
 	req.SetPathValue("id", "1")
 	rec := httptest.NewRecorder()
 
-	handler.StartTask(rec, req)
+	handler.StartIssue(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d: %s", rec.Code, rec.Body.String())
@@ -279,18 +279,18 @@ func TestAPI_FinishTask(t *testing.T) {
 	handler, manager, _ := setupTestAPI(t)
 
 	// Create queue and task, start it first
-	q, _ := manager.CreateQueue(context.Background(), queue.CreateQueueInput{Name: "Test"})
-	task, _ := manager.CreateTask(context.Background(), queue.CreateTaskInput{
+	q, _ := manager.CreateProject(context.Background(), queue.CreateQueueInput{Name: "Test"})
+	task, _ := manager.CreateIssue(context.Background(), queue.CreateTaskInput{
 		QueueID: q.ID,
 		Title:   "Task",
 	})
-	manager.StartTask(context.Background(), task.ID)
+	manager.StartIssue(context.Background(), task.ID)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/tasks/1/finish", nil)
 	req.SetPathValue("id", "1")
 	rec := httptest.NewRecorder()
 
-	handler.FinishTask(rec, req)
+	handler.FinishIssue(rec, req)
 
 	if rec.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d: %s", rec.Code, rec.Body.String())

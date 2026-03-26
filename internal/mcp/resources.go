@@ -21,7 +21,7 @@ func (s *Server) registerResources() error {
 			mcplib.WithResourceDescription("List all projects"),
 			mcplib.WithMIMEType("application/json"),
 		),
-		s.handleQueueListResource,
+		s.handleProjectListResource,
 	)
 
 	// Dynamic resource: get specific project
@@ -32,7 +32,7 @@ func (s *Server) registerResources() error {
 			mcplib.WithResourceDescription("Get details of a specific project"),
 			mcplib.WithMIMEType("application/json"),
 		),
-		s.handleQueueResource,
+		s.handleProjectResource,
 	)
 
 	// Dynamic resource: get issues in a project
@@ -43,7 +43,7 @@ func (s *Server) registerResources() error {
 			mcplib.WithResourceDescription("Get all issues in a specific project"),
 			mcplib.WithMIMEType("application/json"),
 		),
-		s.handleQueueTasksResource,
+		s.handleProjectIssuesResource,
 	)
 
 	// Dynamic resource: get specific issue
@@ -54,7 +54,7 @@ func (s *Server) registerResources() error {
 			mcplib.WithResourceDescription("Get details of a specific issue"),
 			mcplib.WithMIMEType("application/json"),
 		),
-		s.handleTaskResource,
+		s.handleIssueResource,
 	)
 
 	return nil
@@ -62,8 +62,8 @@ func (s *Server) registerResources() error {
 
 // Resource handlers
 
-func (s *Server) handleQueueListResource(ctx context.Context, req mcplib.ReadResourceRequest) ([]mcplib.ResourceContents, error) {
-	queues, err := s.manager.ListQueues(ctx)
+func (s *Server) handleProjectListResource(ctx context.Context, req mcplib.ReadResourceRequest) ([]mcplib.ResourceContents, error) {
+	queues, err := s.manager.ListProjects(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list queues: %w", err)
 	}
@@ -76,7 +76,7 @@ func (s *Server) handleQueueListResource(ctx context.Context, req mcplib.ReadRes
 
 	var result []QueueWithStats
 	for _, q := range queues {
-		stats, err := s.manager.GetQueueStats(ctx, q.ID)
+		stats, err := s.manager.GetProjectStats(ctx, q.ID)
 		if err != nil {
 			stats = &queue.QueueStats{}
 		}
@@ -100,19 +100,19 @@ func (s *Server) handleQueueListResource(ctx context.Context, req mcplib.ReadRes
 	}, nil
 }
 
-func (s *Server) handleQueueResource(ctx context.Context, req mcplib.ReadResourceRequest) ([]mcplib.ResourceContents, error) {
+func (s *Server) handleProjectResource(ctx context.Context, req mcplib.ReadResourceRequest) ([]mcplib.ResourceContents, error) {
 	// Extract queue_id from URI
-	queueID, err := extractQueueID(req.Params.URI)
+	queueID, err := extractProjectID(req.Params.URI)
 	if err != nil {
 		return nil, err
 	}
 
-	q, err := s.manager.GetQueue(ctx, queueID)
+	q, err := s.manager.GetProject(ctx, queueID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get queue: %w", err)
 	}
 
-	stats, err := s.manager.GetQueueStats(ctx, queueID)
+	stats, err := s.manager.GetProjectStats(ctx, queueID)
 	if err != nil {
 		stats = &queue.QueueStats{}
 	}
@@ -139,14 +139,14 @@ func (s *Server) handleQueueResource(ctx context.Context, req mcplib.ReadResourc
 	}, nil
 }
 
-func (s *Server) handleQueueTasksResource(ctx context.Context, req mcplib.ReadResourceRequest) ([]mcplib.ResourceContents, error) {
+func (s *Server) handleProjectIssuesResource(ctx context.Context, req mcplib.ReadResourceRequest) ([]mcplib.ResourceContents, error) {
 	// Extract queue_id from URI
-	queueID, err := extractQueueIDFromTasksURI(req.Params.URI)
+	queueID, err := extractProjectIDFromIssuesURI(req.Params.URI)
 	if err != nil {
 		return nil, err
 	}
 
-	tasks, err := s.manager.ListTasks(ctx, queueID, nil)
+	tasks, err := s.manager.ListIssues(ctx, queueID, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list tasks: %w", err)
 	}
@@ -165,14 +165,14 @@ func (s *Server) handleQueueTasksResource(ctx context.Context, req mcplib.ReadRe
 	}, nil
 }
 
-func (s *Server) handleTaskResource(ctx context.Context, req mcplib.ReadResourceRequest) ([]mcplib.ResourceContents, error) {
+func (s *Server) handleIssueResource(ctx context.Context, req mcplib.ReadResourceRequest) ([]mcplib.ResourceContents, error) {
 	// Extract task_id from URI
-	taskID, err := extractTaskID(req.Params.URI)
+	taskID, err := extractIssueID(req.Params.URI)
 	if err != nil {
 		return nil, err
 	}
 
-	task, err := s.manager.GetTask(ctx, taskID)
+	task, err := s.manager.GetIssue(ctx, taskID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get task: %w", err)
 	}
@@ -193,7 +193,7 @@ func (s *Server) handleTaskResource(ctx context.Context, req mcplib.ReadResource
 
 // URI extraction helpers
 
-func extractQueueID(uri string) (int64, error) {
+func extractProjectID(uri string) (int64, error) {
 	re := regexp.MustCompile(`project://(\d+)`)
 	matches := re.FindStringSubmatch(uri)
 	if len(matches) < 2 {
@@ -206,7 +206,7 @@ func extractQueueID(uri string) (int64, error) {
 	return id, nil
 }
 
-func extractQueueIDFromTasksURI(uri string) (int64, error) {
+func extractProjectIDFromIssuesURI(uri string) (int64, error) {
 	re := regexp.MustCompile(`project://(\d+)/issues`)
 	matches := re.FindStringSubmatch(uri)
 	if len(matches) < 2 {
@@ -219,7 +219,7 @@ func extractQueueIDFromTasksURI(uri string) (int64, error) {
 	return id, nil
 }
 
-func extractTaskID(uri string) (int64, error) {
+func extractIssueID(uri string) (int64, error) {
 	re := regexp.MustCompile(`issue://(\d+)`)
 	matches := re.FindStringSubmatch(uri)
 	if len(matches) < 2 {
