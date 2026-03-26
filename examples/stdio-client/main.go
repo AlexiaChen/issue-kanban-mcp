@@ -30,7 +30,7 @@ func main() {
 
 	// Create STDIO client by spawning the server
 	// In production, the path would be to the compiled binary
-	// Note: -readonly=false is needed to access admin tools (queue_create, task_create, etc.)
+	// Note: -readonly=false is needed to access admin tools (project_create, issue_create, etc.)
 	c, err := client.NewStdioMCPClient(
 		"go",           // command
 		[]string{},     // environment variables
@@ -72,7 +72,7 @@ func main() {
 	fmt.Println("1. Creating a queue...")
 	result, err := c.CallTool(ctx, mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
-			Name: "queue_create",
+			Name: "project_create",
 			Arguments: map[string]interface{}{
 				"name":        "My Task Queue",
 				"description": "A simple task queue",
@@ -89,7 +89,7 @@ func main() {
 	for i := 1; i <= 3; i++ {
 		_, err = c.CallTool(ctx, mcp.CallToolRequest{
 			Params: mcp.CallToolParams{
-				Name: "task_create",
+				Name: "issue_create",
 				Arguments: map[string]interface{}{
 					"queue_id":    1,
 					"title":       fmt.Sprintf("Task #%d", i),
@@ -109,7 +109,7 @@ func main() {
 	fmt.Println("3. Listing all queues...")
 	result, err = c.CallTool(ctx, mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
-			Name:      "queue_list",
+			Name:      "project_list",
 			Arguments: map[string]interface{}{},
 		},
 	})
@@ -122,7 +122,7 @@ func main() {
 	fmt.Println("4. Starting task 1...")
 	result, err = c.CallTool(ctx, mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
-			Name: "task_update",
+			Name: "issue_update",
 			Arguments: map[string]interface{}{
 				"task_id": 1,
 				"status":  "doing",
@@ -138,7 +138,7 @@ func main() {
 	fmt.Println("5. Prioritizing task 3 (moving to front)...")
 	result, err = c.CallTool(ctx, mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
-			Name: "task_prioritize",
+			Name: "issue_prioritize",
 			Arguments: map[string]interface{}{
 				"task_id":  3,
 				"position": 1,
@@ -154,7 +154,7 @@ func main() {
 	fmt.Println("6. Listing tasks in queue...")
 	result, err = c.CallTool(ctx, mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
-			Name: "task_list",
+			Name: "issue_list",
 			Arguments: map[string]interface{}{
 				"queue_id": 1,
 			},
@@ -169,7 +169,7 @@ func main() {
 	fmt.Println("7. Reading queue resource...")
 	resourceResult, err := c.ReadResource(ctx, mcp.ReadResourceRequest{
 		Params: mcp.ReadResourceParams{
-			URI: "queue://1/tasks",
+			URI: "project://1/issues",
 		},
 	})
 	if err != nil {

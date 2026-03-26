@@ -7,7 +7,7 @@
 //   1. Start the server: go run ./cmd/server -port=9292 -mcp=http -readonly=false
 //   2. Run this client: go run ./examples/mcp-client/main.go
 //
-// Note: -readonly=false is needed to access admin tools (queue_create, task_create, etc.)
+// Note: -readonly=false is needed to access admin tools (project_create, issue_create, etc.)
 //
 // The client demonstrates:
 //   - Connecting to MCP server via SSE transport
@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	"github.com/mark3labs/mcp-go/client"
@@ -35,6 +36,9 @@ func main() {
 	// Connect to MCP server via SSE transport
 	// The server should be running with -mcp=http flag
 	serverURL := "http://localhost:9292/sse"
+	if envURL := os.Getenv("MCP_SERVER_URL"); envURL != "" {
+		serverURL = envURL + "/sse"
+	}
 
 	fmt.Println("=== MCP Client Example (SSE Transport) ===")
 	fmt.Printf("Connecting to MCP server at %s...\n", serverURL)
@@ -89,7 +93,7 @@ func main() {
 	fmt.Println("=== Step 2: Create a Queue ===")
 	createQueueResult, err := c.CallTool(ctx, mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
-			Name: "queue_create",
+			Name: "project_create",
 			Arguments: map[string]interface{}{
 				"name":        "Example Queue",
 				"description": "A queue created by MCP client example",
@@ -105,7 +109,7 @@ func main() {
 	fmt.Println("=== Step 3: List All Queues ===")
 	listQueuesResult, err := c.CallTool(ctx, mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
-			Name:      "queue_list",
+			Name:      "project_list",
 			Arguments: map[string]interface{}{},
 		},
 	})
@@ -119,7 +123,7 @@ func main() {
 	for i := 1; i <= 3; i++ {
 		_, err := c.CallTool(ctx, mcp.CallToolRequest{
 			Params: mcp.CallToolParams{
-				Name: "task_create",
+				Name: "issue_create",
 				Arguments: map[string]interface{}{
 					"queue_id":    1,
 					"title":       fmt.Sprintf("Task %d", i),
@@ -139,7 +143,7 @@ func main() {
 	fmt.Println("=== Step 5: List Tasks in Queue ===")
 	listTasksResult, err := c.CallTool(ctx, mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
-			Name: "task_list",
+			Name: "issue_list",
 			Arguments: map[string]interface{}{
 				"queue_id": 1,
 			},
@@ -154,7 +158,7 @@ func main() {
 	fmt.Println("=== Step 6: Start Task 1 ===")
 	startResult, err := c.CallTool(ctx, mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
-			Name: "task_update",
+			Name: "issue_update",
 			Arguments: map[string]interface{}{
 				"task_id": 1,
 				"status":  "doing",
@@ -170,7 +174,7 @@ func main() {
 	fmt.Println("=== Step 7: Prioritize Task 3 (插队) ===")
 	prioritizeResult, err := c.CallTool(ctx, mcp.CallToolRequest{
 		Params: mcp.CallToolParams{
-			Name: "task_prioritize",
+			Name: "issue_prioritize",
 			Arguments: map[string]interface{}{
 				"task_id":  3,
 				"position": 1,
@@ -199,13 +203,13 @@ func main() {
 		// Read the queue list resource
 		readResult, err := c.ReadResource(ctx, mcp.ReadResourceRequest{
 			Params: mcp.ReadResourceParams{
-				URI: "queue://list",
+				URI: "project://list",
 			},
 		})
 		if err != nil {
 			log.Printf("Failed to read resource: %v", err)
 		} else {
-			fmt.Println("Resource content (queue://list):")
+			fmt.Println("Resource content (project://list):")
 			for _, content := range readResult.Contents {
 				if textContent, ok := mcp.AsTextResourceContents(content); ok {
 					fmt.Println(textContent.Text)
