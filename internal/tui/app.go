@@ -3,7 +3,6 @@ package tui
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -425,11 +424,11 @@ func (a App) submitForm() (tea.Model, tea.Cmd) {
 		}
 		desc := strings.TrimSpace(a.descInput.Value())
 		priorityStr := strings.TrimSpace(a.inputs[1].Value())
-		priority := 0
+		priority := queue.PriorityLow
 		if priorityStr != "" {
-			p, err := strconv.Atoi(priorityStr)
+			p, err := queue.ParsePriority(priorityStr)
 			if err != nil {
-				a.statusMsg = "Priority must be a number"
+				a.statusMsg = "Priority must be low, medium, or high"
 				a.isError = true
 				return a, nil
 			}
@@ -459,11 +458,11 @@ func (a App) submitForm() (tea.Model, tea.Cmd) {
 		}
 		desc := strings.TrimSpace(a.descInput.Value())
 		priorityStr := strings.TrimSpace(a.inputs[1].Value())
-		priority := 0
+		priority := queue.PriorityLow
 		if priorityStr != "" {
-			p, err := strconv.Atoi(priorityStr)
+			p, err := queue.ParsePriority(priorityStr)
 			if err != nil {
-				a.statusMsg = "Priority must be a number"
+				a.statusMsg = "Priority must be low, medium, or high"
 				a.isError = true
 				return a, nil
 			}
@@ -520,7 +519,7 @@ func (a App) doDelete() (tea.Model, tea.Cmd) {
 	}
 }
 
-func (a App) doEditTask(id int64, title, desc string, priority int) tea.Cmd {
+func (a App) doEditTask(id int64, title, desc string, priority queue.Priority) tea.Cmd {
 	return func() tea.Msg {
 		if _, err := a.client.EditTask(context.Background(), id, &title, &desc, &priority); err != nil {
 			return errMsg{err}
@@ -618,7 +617,7 @@ func (a App) viewTaskList() string {
 	} else {
 		for i, t := range a.tasks {
 			badge := taskStatusLabel(t.Status)
-			line := fmt.Sprintf("  %-11s  %-40s  pri:%-3d", badge, t.Title, t.Priority)
+			line := fmt.Sprintf("  %-11s  %-40s  pri:%-6s", badge, t.Title, t.Priority.String())
 			if i == a.taskIdx {
 				sb.WriteString(selectedItemStyle.Render(line))
 			} else {
@@ -744,8 +743,8 @@ func makeTaskInputs() []textinput.Model {
 	title.CharLimit = 200
 
 	prio := textinput.New()
-	prio.Placeholder = "0"
-	prio.CharLimit = 5
+	prio.Placeholder = "low / medium / high (default: low)"
+	prio.CharLimit = 10
 
 	return []textinput.Model{title, prio}
 }
@@ -757,9 +756,9 @@ func makeEditTaskInputs(t queue.Task) []textinput.Model {
 	title.SetValue(t.Title)
 
 	prio := textinput.New()
-	prio.Placeholder = "0"
-	prio.CharLimit = 5
-	prio.SetValue(strconv.Itoa(t.Priority))
+	prio.Placeholder = "low / medium / high (default: low)"
+	prio.CharLimit = 10
+	prio.SetValue(t.Priority.String())
 
 	return []textinput.Model{title, prio}
 }

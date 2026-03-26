@@ -31,7 +31,7 @@ var mockTask = queue.Task{
 	Title:       "Test Task",
 	Description: "A test task",
 	Status:      queue.StatusPending,
-	Priority:    0,
+	Priority:    queue.PriorityLow,
 	CreatedAt:   time.Now(),
 	UpdatedAt:   time.Now(),
 }

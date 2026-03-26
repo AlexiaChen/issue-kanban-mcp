@@ -297,20 +297,13 @@ func (h *Handler) PrioritizeTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var input struct {
-		Position int `json:"position"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
-		input.Position = 1 // Default to front
-	}
-
-	task, err := h.manager.PrioritizeTask(r.Context(), id, input.Position)
+	task, err := h.manager.PrioritizeTask(r.Context(), id)
 	if err != nil {
 		if err == queue.ErrTaskNotFound {
 			h.writeError(w, http.StatusNotFound, "Issue not found")
 			return
 		}
-		h.writeError(w, http.StatusInternalServerError, err.Error())
+		h.writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 

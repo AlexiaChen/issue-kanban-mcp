@@ -100,7 +100,7 @@ func TestE2E_TaskCRUD(t *testing.T) {
 		"queue_id":    queueID,
 		"title":       "E2E Test Task",
 		"description": "Test task description",
-		"priority":    5,
+		"priority":    "high",
 	})
 	if err != nil {
 		t.Fatalf("Failed to create task: %v", err)
@@ -174,24 +174,27 @@ func TestE2E_TaskPrioritization(t *testing.T) {
 	queueID := int64(q["id"].(float64))
 	defer client.DeleteQueue(queueID)
 
-	// Create multiple tasks
+	// Create multiple tasks: task1 and task2 with low priority, task3 with high priority
 	client.CreateTask(map[string]interface{}{
 		"queue_id": queueID,
 		"title":    "Task 1",
+		"priority": "low",
 	})
 	client.CreateTask(map[string]interface{}{
 		"queue_id": queueID,
 		"title":    "Task 2",
+		"priority": "low",
 	})
 	task3, _ := client.CreateTask(map[string]interface{}{
 		"queue_id": queueID,
 		"title":    "Task 3",
+		"priority": "high",
 	})
 
 	task3ID := int64(task3["id"].(float64))
 
-	// Prioritize task 3 to front
-	_, err := client.PrioritizeTask(task3ID, 1)
+	// Prioritize task3 (high priority) ahead of lower-priority tasks
+	_, err := client.PrioritizeTask(task3ID)
 	if err != nil {
 		t.Fatalf("Failed to prioritize task: %v", err)
 	}
@@ -402,10 +405,8 @@ func (c *E2EClient) FinishTask(id int64) (map[string]interface{}, error) {
 	return c.doObject("POST", fmt.Sprintf("/api/issues/%d/finish", id), nil)
 }
 
-func (c *E2EClient) PrioritizeTask(id int64, position int) (map[string]interface{}, error) {
-	return c.doObject("POST", fmt.Sprintf("/api/issues/%d/prioritize", id), map[string]interface{}{
-		"position": position,
-	})
+func (c *E2EClient) PrioritizeTask(id int64) (map[string]interface{}, error) {
+	return c.doObject("POST", fmt.Sprintf("/api/issues/%d/prioritize", id), nil)
 }
 
 // Integration test using real storage
@@ -444,7 +445,7 @@ func TestIntegration_FullWorkflow(t *testing.T) {
 			QueueID:     q.ID,
 			Title:       fmt.Sprintf("Task %d", i),
 			Description: fmt.Sprintf("Description for task %d", i),
-			Priority:    i % 3,
+			Priority:    queue.Priority(i % 3),
 		})
 		if err != nil {
 			t.Fatalf("Failed to create task %d: %v", i, err)
@@ -498,15 +499,32 @@ func TestIntegration_FullWorkflow(t *testing.T) {
 		t.Errorf("Expected pending 1, got %d", stats.Pending)
 	}
 
-	// Test prioritization
-	lastTask := tasks[len(tasks)-1]
-	prioritizedTask, err := manager.PrioritizeTask(ctx, lastTask.ID, 1)
+	// Test prioritization: add a low-priority task first, then a high-priority one
+	// so the high-priority task can jump ahead of the lower-priority one.
+	lowPrioTask, err := manager.CreateTask(ctx, queue.CreateTaskInput{
+		QueueID:  q.ID,
+		Title:    "Low Priority Task",
+		Priority: queue.PriorityLow,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create low priority task: %v", err)
+	}
+	highPrioTask, err := manager.CreateTask(ctx, queue.CreateTaskInput{
+		QueueID:  q.ID,
+		Title:    "High Priority Task",
+		Priority: queue.PriorityHigh,
+	})
+	if err != nil {
+		t.Fatalf("Failed to create high priority task: %v", err)
+	}
+	prioritizedTask, err := manager.PrioritizeTask(ctx, highPrioTask.ID)
 	if err != nil {
 		t.Fatalf("Failed to prioritize task: %v", err)
 	}
-	if prioritizedTask.Priority != 1000 {
-		t.Errorf("Expected priority 1000, got %d", prioritizedTask.Priority)
+	if prioritizedTask.Priority != queue.PriorityHigh {
+		t.Errorf("Expected priority High, got %v", prioritizedTask.Priority)
 	}
+	_ = lowPrioTask
 }
 
 // Suppress unused import warning

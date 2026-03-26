@@ -153,7 +153,7 @@ func (c *Client) UpdateTaskStatus(ctx context.Context, id int64, status queue.Ta
 }
 
 // EditTask updates the title, description, and/or priority of a pending task.
-func (c *Client) EditTask(ctx context.Context, id int64, title, desc *string, priority *int) (*queue.Task, error) {
+func (c *Client) EditTask(ctx context.Context, id int64, title, desc *string, priority *queue.Priority) (*queue.Task, error) {
 	input := queue.EditTaskInput{Title: title, Description: desc, Priority: priority}
 	var result queue.Task
 	if err := c.doRequest(ctx, http.MethodPut, fmt.Sprintf("/api/issues/%d", id), input, &result); err != nil {
@@ -167,11 +167,10 @@ func (c *Client) DeleteTask(ctx context.Context, id int64) error {
 	return c.doRequest(ctx, http.MethodDelete, fmt.Sprintf("/api/issues/%d", id), nil, nil)
 }
 
-// PrioritizeTask moves a task to the front of its queue.
+// PrioritizeTask moves a task ahead of lower-priority pending tasks.
 func (c *Client) PrioritizeTask(ctx context.Context, id int64) (*queue.Task, error) {
-	body := map[string]int{"position": 1}
 	var result queue.Task
-	if err := c.doRequest(ctx, http.MethodPost, fmt.Sprintf("/api/issues/%d/prioritize", id), body, &result); err != nil {
+	if err := c.doRequest(ctx, http.MethodPost, fmt.Sprintf("/api/issues/%d/prioritize", id), nil, &result); err != nil {
 		return nil, err
 	}
 	return &result, nil

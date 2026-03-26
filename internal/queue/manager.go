@@ -29,7 +29,7 @@ type Storage interface {
 	UpdateTask(ctx context.Context, id int64, input UpdateTaskInput) (*Task, error)
 	EditTask(ctx context.Context, id int64, input EditTaskInput) (*Task, error)
 	DeleteTask(ctx context.Context, id int64) error
-	PrioritizeTask(ctx context.Context, taskID int64, position int) (*Task, error)
+	PrioritizeTask(ctx context.Context, taskID int64) (*Task, error)
 }
 
 // Manager provides business logic for queue management
@@ -108,7 +108,7 @@ func (m *Manager) EditTask(ctx context.Context, id int64, input EditTaskInput) (
 	if input.Title != nil && *input.Title == "" {
 		return nil, errors.New("task title cannot be empty")
 	}
-	if input.Priority != nil && *input.Priority < 0 {
+	if input.Priority != nil && *input.Priority < PriorityLow {
 		return nil, errors.New("task priority cannot be negative")
 	}
 	task, err := m.storage.GetTask(ctx, id)
@@ -126,9 +126,9 @@ func (m *Manager) DeleteTask(ctx context.Context, id int64) error {
 	return m.storage.DeleteTask(ctx, id)
 }
 
-// PrioritizeTask moves a task to a specific position in the queue
-func (m *Manager) PrioritizeTask(ctx context.Context, taskID int64, position int) (*Task, error) {
-	return m.storage.PrioritizeTask(ctx, taskID, position)
+// PrioritizeTask moves a pending task ahead of lower-priority pending tasks.
+func (m *Manager) PrioritizeTask(ctx context.Context, taskID int64) (*Task, error) {
+	return m.storage.PrioritizeTask(ctx, taskID)
 }
 
 // StartTask moves a task to "doing" status

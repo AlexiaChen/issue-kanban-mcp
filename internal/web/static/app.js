@@ -188,7 +188,7 @@ function renderTasks(tasks) {
     tasksList.innerHTML = tasks.map(task => `
         <div class="task-card ${task.status}">
             <div class="task-info">
-                <h4>${escapeHtml(task.title)} ${task.priority > 0 ? `<span class="priority-high">⚡${task.priority}</span>` : ''}</h4>
+                <h4>${escapeHtml(task.title)} ${task.priority && task.priority !== 'low' ? `<span class="priority-high">⚡${task.priority}</span>` : ''}</h4>
                 ${task.description ? `<p>${escapeHtml(task.description)}</p>` : ''}
                 <div class="task-meta">
                     <span>ID: ${task.id}</span>
@@ -244,7 +244,7 @@ async function editTask(taskId) {
 
 async function prioritizeTask(taskId) {
     try {
-        await api.post(`/api/issues/${taskId}/prioritize`, { position: 1 });
+        await api.post(`/api/issues/${taskId}/prioritize`, {});
         loadQueueDetail(currentQueueId);
     } catch (err) {
         alert('Failed to prioritize issue: ' + err.message);
@@ -319,7 +319,11 @@ function showTaskModal(task = null) {
         </div>
         <div class="form-group">
             <label for="priority">Priority</label>
-            <input type="number" id="priority" name="priority" value="${task ? task.priority : 0}" min="0">
+            <select id="priority" name="priority">
+                <option value="low"${!task || task.priority === 'low' ? ' selected' : ''}>Low</option>
+                <option value="medium"${task && task.priority === 'medium' ? ' selected' : ''}>Medium</option>
+                <option value="high"${task && task.priority === 'high' ? ' selected' : ''}>High</option>
+            </select>
         </div>
     `;
 
@@ -331,14 +335,14 @@ function showTaskModal(task = null) {
                 await api.put(`/api/issues/${task.id}`, {
                     title: formData.get('title'),
                     description: formData.get('description'),
-                    priority: parseInt(formData.get('priority')) || 0
+                    priority: formData.get('priority')
                 });
             } else {
                 await api.post('/api/issues', {
                     queue_id: currentQueueId,
                     title: formData.get('title'),
                     description: formData.get('description'),
-                    priority: parseInt(formData.get('priority')) || 0
+                    priority: formData.get('priority')
                 });
             }
             hideModal();

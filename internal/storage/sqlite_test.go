@@ -73,7 +73,7 @@ func TestSQLiteStorage(t *testing.T) {
 			QueueID:     1,
 			Title:       "Test Task",
 			Description: "Task Description",
-			Priority:    5,
+			Priority:    queue.PriorityHigh,
 		})
 		if err != nil {
 			t.Fatalf("Failed to create task: %v", err)
@@ -161,25 +161,38 @@ func TestSQLiteStorage(t *testing.T) {
 	})
 
 	t.Run("PrioritizeTask", func(t *testing.T) {
-		// Create another task
-		task2, err := store.CreateTask(ctx, queue.CreateTaskInput{
-			QueueID: 1,
-			Title:   "Second Task",
+		// Create a low-priority task (will be at the front in queue position order)
+		taskLow, err := store.CreateTask(ctx, queue.CreateTaskInput{
+			QueueID:  1,
+			Title:    "Low Priority Task",
+			Priority: queue.PriorityLow,
 		})
 		if err != nil {
-			t.Fatalf("Failed to create task: %v", err)
+			t.Fatalf("Failed to create low priority task: %v", err)
 		}
 
-		// Prioritize task2 to front
-		task, err := store.PrioritizeTask(ctx, task2.ID, 1)
+		// Create a medium-priority task (will be behind low-priority in queue)
+		taskMedium, err := store.CreateTask(ctx, queue.CreateTaskInput{
+			QueueID:  1,
+			Title:    "Medium Priority Task",
+			Priority: queue.PriorityMedium,
+		})
+		if err != nil {
+			t.Fatalf("Failed to create medium priority task: %v", err)
+		}
+
+		// Prioritize the medium task to jump ahead of the low-priority task
+		task, err := store.PrioritizeTask(ctx, taskMedium.ID)
 		if err != nil {
 			t.Fatalf("Failed to prioritize task: %v", err)
 		}
-		if task.Position != 1 {
-			t.Errorf("Expected position 1, got %d", task.Position)
+		// Should have moved to the original position of the low-priority task
+		if task.Position != taskLow.Position {
+			t.Errorf("Expected position %d, got %d", taskLow.Position, task.Position)
 		}
-		if task.Priority != 1000 {
-			t.Errorf("Expected priority 1000, got %d", task.Priority)
+		// Priority should remain unchanged (still Medium)
+		if task.Priority != queue.PriorityMedium {
+			t.Errorf("Expected priority Medium, got %v", task.Priority)
 		}
 	})
 

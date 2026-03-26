@@ -362,41 +362,64 @@ func (s *SQLiteStorage) DeleteTask(ctx context.Context, id int64) error {
 	return nil
 }
 
-// PrioritizeTask moves a task to a specific position
-func (s *SQLiteStorage) PrioritizeTask(ctx context.Context, taskID int64, position int) (*queue.Task, error) {
-	// Get the task
+// PrioritizeTask moves a pending task ahead of lower-priority pending tasks.
+func (s *SQLiteStorage) PrioritizeTask(ctx context.Context, taskID int64) (*queue.Task, error) {
 	task, err := s.GetTask(ctx, taskID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Start a transaction
+	if task.Status != queue.StatusPending {
+		return nil, errors.New("only pending issues can be prioritized")
+	}
+
+	if task.Priority == queue.PriorityLow {
+		return nil, errors.New("low priority issues cannot jump the queue")
+	}
+
+	// Count lower-priority pending tasks in the same queue
+	var count int
+	err = s.db.QueryRowContext(ctx,
+		"SELECT COUNT(*) FROM tasks WHERE queue_id=? AND status='pending' AND priority < ? AND id != ?",
+		task.QueueID, int(task.Priority), taskID,
+	).Scan(&count)
+	if err != nil {
+		return nil, fmt.Errorf("failed to count lower-priority tasks: %w", err)
+	}
+	if count == 0 {
+		return nil, errors.New("no lower-priority pending issues exist to jump ahead of")
+	}
+
+	// Get the earliest position among lower-priority pending tasks
+	var minPos int
+	err = s.db.QueryRowContext(ctx,
+		"SELECT MIN(position) FROM tasks WHERE queue_id=? AND status='pending' AND priority < ?",
+		task.QueueID, int(task.Priority),
+	).Scan(&minPos)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get min position: %w", err)
+	}
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback()
 
-	// If position is 0 or negative, move to front (position 1)
-	if position <= 0 {
-		position = 1
-	}
-
-	// Shift tasks to make room
+	// Shift all tasks at position >= minPos (except this task) back by one
 	_, err = tx.ExecContext(ctx,
 		`UPDATE tasks SET position = position + 1, updated_at = ?
 		 WHERE queue_id = ? AND position >= ? AND id != ?`,
-		time.Now(), task.QueueID, position, taskID,
+		time.Now(), task.QueueID, minPos, taskID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to shift tasks: %w", err)
 	}
 
-	// Update the task's position
+	// Move this task to minPos (do NOT change its priority)
 	_, err = tx.ExecContext(ctx,
-		`UPDATE tasks SET position = ?, priority = ?, updated_at = ? WHERE id = ?`,
-		position, 1000, // High priority for prioritized tasks
-		time.Now(), taskID,
+		`UPDATE tasks SET position = ?, updated_at = ? WHERE id = ?`,
+		minPos, time.Now(), taskID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update task position: %w", err)

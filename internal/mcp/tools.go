@@ -66,9 +66,9 @@ func (s *Server) registerTools() error {
 			mcplib.WithString("description",
 				mcplib.Description("Optional description of the issue"),
 			),
-			mcplib.WithNumber("priority",
-				mcplib.Description("Priority level (higher = more urgent)"),
-				mcplib.DefaultNumber(0),
+			mcplib.WithString("priority",
+				mcplib.Description("Priority level: low, medium, or high (default: low)"),
+				mcplib.Enum("low", "medium", "high"),
 			),
 		), s.handleTaskCreate)
 
@@ -81,14 +81,10 @@ func (s *Server) registerTools() error {
 		), s.handleTaskDelete)
 
 		s.mcp.AddTool(mcplib.NewTool("issue_prioritize",
-			mcplib.WithDescription("Move an issue to a higher priority position in the project (插队)"),
+			mcplib.WithDescription("Move a pending issue ahead of lower-priority pending issues in the project (插队)"),
 			mcplib.WithNumber("task_id",
 				mcplib.Required(),
 				mcplib.Description("ID of the issue to prioritize"),
-			),
-			mcplib.WithNumber("position",
-				mcplib.Description("Target position (1 = front of project). If not specified, moves to front."),
-				mcplib.DefaultNumber(1),
 			),
 		), s.handleTaskPrioritize)
 	}
@@ -220,7 +216,11 @@ func (s *Server) handleTaskCreate(ctx context.Context, req mcplib.CallToolReques
 	}
 
 	description := req.GetString("description", "")
-	priority := req.GetInt("priority", 0)
+	priorityStr := req.GetString("priority", "low")
+	priority, err := queue.ParsePriority(priorityStr)
+	if err != nil {
+		return mcplib.NewToolResultError(fmt.Sprintf("Invalid priority: %v", err)), nil
+	}
 
 	task, err := s.manager.CreateTask(ctx, queue.CreateTaskInput{
 		QueueID:     int64(queueID),
@@ -286,9 +286,7 @@ func (s *Server) handleTaskPrioritize(ctx context.Context, req mcplib.CallToolRe
 		return mcplib.NewToolResultError(err.Error()), nil
 	}
 
-	position := req.GetInt("position", 1)
-
-	task, err := s.manager.PrioritizeTask(ctx, int64(taskID), position)
+	task, err := s.manager.PrioritizeTask(ctx, int64(taskID))
 	if err != nil {
 		return mcplib.NewToolResultError(fmt.Sprintf("Failed to prioritize task: %v", err)), nil
 	}
@@ -298,5 +296,5 @@ func (s *Server) handleTaskPrioritize(ctx context.Context, req mcplib.CallToolRe
 		return mcplib.NewToolResultError(fmt.Sprintf("Failed to marshal result: %v", err)), nil
 	}
 
-	return mcplib.NewToolResultText(fmt.Sprintf("Issue prioritized successfully (moved to position %d):\n%s", position, string(data))), nil
+	return mcplib.NewToolResultText(fmt.Sprintf("Issue prioritized successfully:\n%s", string(data))), nil
 }

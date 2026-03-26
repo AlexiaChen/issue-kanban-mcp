@@ -208,8 +208,8 @@ func newTasksListCmd(clientFn func(*cobra.Command) *apiclient.Client) *cobra.Com
 			w := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 0, 2, ' ', 0)
 			fmt.Fprintln(w, "ID\tSTATUS\tPRIORITY\tTITLE\tDESCRIPTION")
 			for _, t := range tasks {
-				fmt.Fprintf(w, "%d\t%s\t%d\t%s\t%s\n",
-					t.ID, colorStatus(t.Status), t.Priority, t.Title, t.Description)
+				fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\n",
+					t.ID, colorStatus(t.Status), t.Priority.String(), t.Title, t.Description)
 			}
 			return w.Flush()
 		},
@@ -238,7 +238,7 @@ func newTasksGetCmd(clientFn func(*cobra.Command) *apiclient.Client) *cobra.Comm
 			fmt.Fprintf(out, "Title:       %s\n", t.Title)
 			fmt.Fprintf(out, "Description: %s\n", t.Description)
 			fmt.Fprintf(out, "Status:      %s\n", colorStatus(t.Status))
-			fmt.Fprintf(out, "Priority:    %d\n", t.Priority)
+			fmt.Fprintf(out, "Priority:    %s\n", t.Priority.String())
 			fmt.Fprintf(out, "Position:    %d\n", t.Position)
 			fmt.Fprintf(out, "Created:     %s\n", t.CreatedAt.Format("2006-01-02 15:04:05"))
 			fmt.Fprintf(out, "Updated:     %s\n", t.UpdatedAt.Format("2006-01-02 15:04:05"))
@@ -254,8 +254,7 @@ func newTasksGetCmd(clientFn func(*cobra.Command) *apiclient.Client) *cobra.Comm
 }
 
 func newTasksCreateCmd(clientFn func(*cobra.Command) *apiclient.Client) *cobra.Command {
-	var title, desc string
-	var priority int
+	var title, desc, priorityStr string
 	cmd := &cobra.Command{
 		Use:   "create <project-id>",
 		Short: "Create an issue",
@@ -268,11 +267,15 @@ func newTasksCreateCmd(clientFn func(*cobra.Command) *apiclient.Client) *cobra.C
 			if title == "" {
 				return fmt.Errorf("--title is required")
 			}
+			prio, err := queue.ParsePriority(priorityStr)
+			if err != nil {
+				return fmt.Errorf("invalid priority: %w", err)
+			}
 			t, err := clientFn(cmd).CreateTask(context.Background(), queue.CreateTaskInput{
 				QueueID:     queueID,
 				Title:       title,
 				Description: desc,
-				Priority:    priority,
+				Priority:    prio,
 			})
 			if err != nil {
 				return err
@@ -283,13 +286,12 @@ func newTasksCreateCmd(clientFn func(*cobra.Command) *apiclient.Client) *cobra.C
 	}
 	cmd.Flags().StringVar(&title, "title", "", "issue title (required)")
 	cmd.Flags().StringVar(&desc, "desc", "", "issue description")
-	cmd.Flags().IntVar(&priority, "priority", 0, "issue priority")
+	cmd.Flags().StringVar(&priorityStr, "priority", "low", "issue priority: low, medium, or high")
 	return cmd
 }
 
 func newTasksEditCmd(clientFn func(*cobra.Command) *apiclient.Client) *cobra.Command {
-	var title, desc string
-	var priority int
+	var title, desc, priorityStr string
 	cmd := &cobra.Command{
 		Use:   "edit <id>",
 		Short: "Edit a pending issue's title, description, or priority",
@@ -300,7 +302,7 @@ func newTasksEditCmd(clientFn func(*cobra.Command) *apiclient.Client) *cobra.Com
 				return fmt.Errorf("invalid id: %w", err)
 			}
 			var titlePtr, descPtr *string
-			var priorityPtr *int
+			var priorityPtr *queue.Priority
 			if cmd.Flags().Changed("title") {
 				titlePtr = &title
 			}
@@ -308,7 +310,11 @@ func newTasksEditCmd(clientFn func(*cobra.Command) *apiclient.Client) *cobra.Com
 				descPtr = &desc
 			}
 			if cmd.Flags().Changed("priority") {
-				priorityPtr = &priority
+				prio, err := queue.ParsePriority(priorityStr)
+				if err != nil {
+					return fmt.Errorf("invalid priority: %w", err)
+				}
+				priorityPtr = &prio
 			}
 			if titlePtr == nil && descPtr == nil && priorityPtr == nil {
 				return fmt.Errorf("provide at least one of --title, --desc, --priority")
@@ -323,7 +329,7 @@ func newTasksEditCmd(clientFn func(*cobra.Command) *apiclient.Client) *cobra.Com
 	}
 	cmd.Flags().StringVar(&title, "title", "", "new title")
 	cmd.Flags().StringVar(&desc, "desc", "", "new description")
-	cmd.Flags().IntVar(&priority, "priority", 0, "new priority")
+	cmd.Flags().StringVar(&priorityStr, "priority", "low", "new priority: low, medium, or high")
 	return cmd
 }
 

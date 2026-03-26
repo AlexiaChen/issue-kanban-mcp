@@ -158,12 +158,11 @@ func (m *MockStorage) DeleteTask(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (m *MockStorage) PrioritizeTask(ctx context.Context, taskID int64, position int) (*Task, error) {
+func (m *MockStorage) PrioritizeTask(ctx context.Context, taskID int64) (*Task, error) {
 	t, ok := m.tasks[taskID]
 	if !ok {
 		return nil, ErrTaskNotFound
 	}
-	t.Position = position
-	t.Priority = 1000
+	t.Position = 1
 	return t, nil
 }
