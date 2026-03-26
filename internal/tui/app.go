@@ -154,7 +154,8 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case viewQueueList:
 			cmd = a.loadQueuesCmd()
 		case viewTaskList:
-			cmd = a.loadTasksCmd()
+			// Refresh both tasks and queue stats so the header counters stay current.
+			cmd = tea.Batch(a.loadTasksCmd(), a.loadQueuesCmd())
 		}
 		return a, tea.Batch(cmd, tickCmd())
 
@@ -622,7 +623,7 @@ func (a App) viewTaskList() string {
 	if msg := a.statusBar(); msg != "" {
 		sb.WriteString(msg + "\n")
 	}
-	sb.WriteString(helpStyle.Render("  j/k: nav  •  n: new  •  e: edit (pending)  •  p: prioritize  •  d: delete  •  Esc: back"))
+	sb.WriteString(helpStyle.Render("  j/k: nav  •  n: new  •  e: edit (pending)  •  p: prioritize  •  d: delete  •  R: refresh  •  Esc: back"))
 	return sb.String()
 }
 
