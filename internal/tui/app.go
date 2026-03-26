@@ -313,21 +313,45 @@ func (a App) handleFormKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.statusMsg = ""
 		return a, nil
 	case tea.KeyTab:
-		a.blurCurrentField()
 		if a.isTaskForm() {
+			// Blur current field (inline to avoid value-receiver copy loss).
+			if a.focusIdx == 1 {
+				a.descInput.Blur()
+			} else {
+				a.inputs[a.taskInputIdx()].Blur()
+			}
 			a.focusIdx = (a.focusIdx + 1) % 3
-		} else {
-			a.focusIdx = (a.focusIdx + 1) % len(a.inputs)
+			// Focus next field.
+			if a.focusIdx == 1 {
+				cmd := a.descInput.Focus()
+				return a, cmd
+			}
+			cmd := a.inputs[a.taskInputIdx()].Focus()
+			return a, cmd
 		}
-		return a, a.focusCurrentField()
+		a.inputs[a.focusIdx].Blur()
+		a.focusIdx = (a.focusIdx + 1) % len(a.inputs)
+		cmd := a.inputs[a.focusIdx].Focus()
+		return a, cmd
 	case tea.KeyShiftTab:
-		a.blurCurrentField()
 		if a.isTaskForm() {
+			if a.focusIdx == 1 {
+				a.descInput.Blur()
+			} else {
+				a.inputs[a.taskInputIdx()].Blur()
+			}
 			a.focusIdx = (a.focusIdx - 1 + 3) % 3
-		} else {
-			a.focusIdx = (a.focusIdx - 1 + len(a.inputs)) % len(a.inputs)
+			if a.focusIdx == 1 {
+				cmd := a.descInput.Focus()
+				return a, cmd
+			}
+			cmd := a.inputs[a.taskInputIdx()].Focus()
+			return a, cmd
 		}
-		return a, a.focusCurrentField()
+		a.inputs[a.focusIdx].Blur()
+		a.focusIdx = (a.focusIdx - 1 + len(a.inputs)) % len(a.inputs)
+		cmd := a.inputs[a.focusIdx].Focus()
+		return a, cmd
 	default:
 		if a.isTaskForm() && a.focusIdx == 1 {
 			var cmd tea.Cmd
@@ -335,7 +359,10 @@ func (a App) handleFormKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return a, cmd
 		}
 		var cmd tea.Cmd
-		idx := a.queueInputIdx()
+		idx := a.taskInputIdx()
+		if !a.isTaskForm() {
+			idx = a.focusIdx
+		}
 		a.inputs[idx], cmd = a.inputs[idx].Update(msg)
 		return a, cmd
 	}
@@ -346,31 +373,13 @@ func (a App) isTaskForm() bool {
 	return a.formMode == "task" || a.formMode == "edit"
 }
 
-// queueInputIdx maps focusIdx to the correct index in a.inputs.
-// For task forms: focusIdx 0→inputs[0] (title), 1→descInput, 2→inputs[1] (priority).
-// For queue forms: focusIdx maps directly.
-func (a App) queueInputIdx() int {
-	if a.isTaskForm() && a.focusIdx == 2 {
+// taskInputIdx maps focusIdx to the correct a.inputs index for task forms.
+// Task forms: focusIdx 0→inputs[0] (title), 1→descInput (not in inputs), 2→inputs[1] (priority).
+func (a App) taskInputIdx() int {
+	if a.focusIdx == 2 {
 		return 1
 	}
-	return a.focusIdx
-}
-
-// blurCurrentField blurs whichever component currently has focus.
-func (a App) blurCurrentField() {
-	if a.isTaskForm() && a.focusIdx == 1 {
-		a.descInput.Blur()
-		return
-	}
-	a.inputs[a.queueInputIdx()].Blur()
-}
-
-// focusCurrentField focuses whichever component should have focus per focusIdx.
-func (a App) focusCurrentField() tea.Cmd {
-	if a.isTaskForm() && a.focusIdx == 1 {
-		return a.descInput.Focus()
-	}
-	return a.inputs[a.queueInputIdx()].Focus()
+	return 0
 }
 
 func (a App) handleConfirmKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
