@@ -1,6 +1,6 @@
-# Task Queue Processor Agent Instruction
+# Issue Kanban Processor Agent Instruction
 
-This instruction configures an AI agent to autonomously process tasks from a specified queue in the Task Queue MCP Server until all tasks are completed.
+This instruction configures an AI agent to autonomously process tasks from a specified kanban in the Issue Kanban MCP Server until all tasks are completed.
 
 ## MCP Server Configuration
 
@@ -39,7 +39,7 @@ The server defaults to readonly mode (safe for AI agents):
 
 ## Agent Behavior
 
-When instructed to process a task queue, the agent MUST:
+When instructed to process an issue kanban, the agent MUST:
 
 ### 1. Initialization Phase
 

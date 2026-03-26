@@ -557,7 +557,7 @@ func (a App) effectiveWidth() int {
 
 func (a App) viewQueueList() string {
 	w := a.effectiveWidth()
-	header := headerStyle.Width(w).Render(titleStyle.Render("📋 Task Queue Manager"))
+	header := headerStyle.Width(w).Render(titleStyle.Render("📋 Issue Kanban Manager"))
 
 	var sb strings.Builder
 	sb.WriteString(header)
@@ -629,7 +629,7 @@ func (a App) viewTaskList() string {
 
 func (a App) viewCreateForm() string {
 	w := a.effectiveWidth()
-	header := headerStyle.Width(w).Render(titleStyle.Render("📋 Task Queue Manager"))
+	header := headerStyle.Width(w).Render(titleStyle.Render("📋 Issue Kanban Manager"))
 
 	var formTitle string
 	var labels []string
@@ -684,7 +684,7 @@ func (a App) viewCreateForm() string {
 
 func (a App) viewConfirmDelete() string {
 	w := a.effectiveWidth()
-	header := headerStyle.Width(w).Render(titleStyle.Render("📋 Task Queue Manager"))
+	header := headerStyle.Width(w).Render(titleStyle.Render("📋 Issue Kanban Manager"))
 
 	var sb strings.Builder
 	sb.WriteString(header)

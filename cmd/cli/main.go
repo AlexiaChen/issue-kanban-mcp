@@ -43,7 +43,7 @@ func newRootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:   "task-queue-cli",
 		Short: "CLI for the task-queue-mcp server",
-		Long:  "A command-line interface for managing task queues via the task-queue-mcp REST API.",
+		Long:  "A command-line interface for managing issue kanbans via the task-queue-mcp REST API.",
 	}
 	root.PersistentFlags().StringVar(&serverURL, "server", "http://localhost:9292", "server base URL")
 

@@ -1,6 +1,6 @@
-# Task Queue MCP Server
+# Issue Kanban MCP Server
 
-A Go-based MCP (Model Context Protocol) Server that manages multiple Task Queues with Web UI and REST API.
+A Go-based MCP (Model Context Protocol) Server that manages multiple Issue Kanbans with Web UI and REST API.
 
 ## Project Overview
 
@@ -236,9 +236,9 @@ make build  # Uses CGO_ENABLED=0
 
 ---
 
-## Task Queue Processing Instructions
+## Issue Kanban Processing Instructions
 
-When asked to process a task queue using this MCP server, follow the workflow below.
+When asked to process an issue kanban using this MCP server, follow the workflow below.
 
 ### Step 1: Identify the Queue
 

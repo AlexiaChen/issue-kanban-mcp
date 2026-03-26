@@ -1,10 +1,10 @@
-# Task Queue Processor Instruction
+# Issue Kanban Processor Instruction
 
-This instruction guides Claude Code to process tasks from a specified queue in the Task Queue MCP Server until all tasks are completed.
+This instruction guides Claude Code to process tasks from a specified kanban in the Issue Kanban MCP Server until all tasks are completed.
 
 ## Prerequisites
 
-Ensure the Task Queue MCP Server is configured like below in your Claude Desktop or Claude Code settings:
+Ensure the Issue Kanban MCP Server is configured like below in your Claude Desktop or Claude Code settings:
 
 ```json
 {
@@ -19,7 +19,7 @@ Ensure the Task Queue MCP Server is configured like below in your Claude Desktop
 
 ## Instruction
 
-When asked to process a task queue, follow this workflow:
+When asked to process an issue kanban, follow this workflow:
 
 ### Step 1: Identify the Queue
 
