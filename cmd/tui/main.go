@@ -6,8 +6,8 @@ import (
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"task-queue-mcp/internal/apiclient"
-	"task-queue-mcp/internal/tui"
+	"github.com/AlexiaChen/issue-kanban-mcp/internal/apiclient"
+	"github.com/AlexiaChen/issue-kanban-mcp/internal/tui"
 )
 
 func main() {

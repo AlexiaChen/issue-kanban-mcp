@@ -8,7 +8,7 @@ import (
 	"strconv"
 
 	mcplib "github.com/mark3labs/mcp-go/mcp"
-	"task-queue-mcp/internal/queue"
+	"github.com/AlexiaChen/issue-kanban-mcp/internal/queue"
 )
 
 // registerResources registers all MCP resources

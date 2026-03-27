@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"task-queue-mcp/internal/queue"
+	"github.com/AlexiaChen/issue-kanban-mcp/internal/queue"
 )
 
 // Handler provides REST API handlers

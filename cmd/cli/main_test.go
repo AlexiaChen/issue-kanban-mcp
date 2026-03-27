@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"task-queue-mcp/internal/apiclient"
-	"task-queue-mcp/internal/queue"
+	"github.com/AlexiaChen/issue-kanban-mcp/internal/apiclient"
+	"github.com/AlexiaChen/issue-kanban-mcp/internal/queue"
 )
 
 // mockQueue is the shared fixture used across tests.

@@ -10,8 +10,8 @@ import (
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
-	"task-queue-mcp/internal/apiclient"
-	"task-queue-mcp/internal/queue"
+	"github.com/AlexiaChen/issue-kanban-mcp/internal/apiclient"
+	"github.com/AlexiaChen/issue-kanban-mcp/internal/queue"
 )
 
 // ANSI colour codes for status badges.

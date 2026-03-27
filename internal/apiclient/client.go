@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"task-queue-mcp/internal/queue"
+	"github.com/AlexiaChen/issue-kanban-mcp/internal/queue"
 )
 
 // QueueWithStats embeds Queue and includes per-queue statistics.

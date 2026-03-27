@@ -8,7 +8,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"task-queue-mcp/internal/queue"
+	"github.com/AlexiaChen/issue-kanban-mcp/internal/queue"
 )
 
 func setupTestAPI(t *testing.T) (*Handler, *queue.Manager, *queue.MockStorage) {

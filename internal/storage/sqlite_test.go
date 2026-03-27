@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"task-queue-mcp/internal/queue"
+	"github.com/AlexiaChen/issue-kanban-mcp/internal/queue"
 )
 
 func TestSQLiteStorage(t *testing.T) {

@@ -1,4 +1,4 @@
-module task-queue-mcp
+module github.com/AlexiaChen/issue-kanban-mcp
 
 go 1.25.4
 

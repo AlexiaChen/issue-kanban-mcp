@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"task-queue-mcp/internal/api"
-	"task-queue-mcp/internal/queue"
-	"task-queue-mcp/internal/storage"
+	"github.com/AlexiaChen/issue-kanban-mcp/internal/api"
+	"github.com/AlexiaChen/issue-kanban-mcp/internal/queue"
+	"github.com/AlexiaChen/issue-kanban-mcp/internal/storage"
 )
 
 // E2E test that runs against a real server

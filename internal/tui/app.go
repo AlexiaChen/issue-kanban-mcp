@@ -11,8 +11,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
-	"task-queue-mcp/internal/apiclient"
-	"task-queue-mcp/internal/queue"
+	"github.com/AlexiaChen/issue-kanban-mcp/internal/apiclient"
+	"github.com/AlexiaChen/issue-kanban-mcp/internal/queue"
 )
 
 type viewState int
@@ -266,7 +266,7 @@ func (a App) handleIssueListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.formMode = "task"
 		a.state = viewCreateTask
 		a.inputs = makeIssueInputs()
-		a.descInput = newDescInput(a.effectiveWidth())
+		a.descInput = newDescInput(a.effectiveWidth(), a.height)
 		a.descInput.SetValue("issue 完成后，别忘记遵循CLAUDE.md  AGENTS.md中的issue kanban mcp的指令，循环获取project的issue list")
 		a.focusIdx = 0
 		a.statusMsg = ""
@@ -285,7 +285,7 @@ func (a App) handleIssueListKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			a.formMode = "edit"
 			a.state = viewEditTask
 			a.inputs = makeEditIssueInputs(*t)
-			a.descInput = newDescInput(a.effectiveWidth())
+			a.descInput = newDescInput(a.effectiveWidth(), a.height)
 			a.descInput.SetValue(t.Description)
 			a.focusIdx = 0
 			a.statusMsg = ""
@@ -845,12 +845,17 @@ func makeEditIssueInputs(t queue.Task) []textinput.Model {
 	return []textinput.Model{title, prio}
 }
 
-func newDescInput(width int) textarea.Model {
+func newDescInput(width, height int) textarea.Model {
 	ta := textarea.New()
 	ta.Placeholder = "Description (optional, multi-line)"
-	ta.CharLimit = 2000
+	ta.CharLimit = 0 // unlimited — prevents truncation when pasting or loading long descriptions
 	ta.SetWidth(width - 20)
-	ta.SetHeight(5)
+	// Use at least 10 rows, but scale with terminal height so large descriptions are editable.
+	descHeight := height - 20
+	if descHeight < 10 {
+		descHeight = 10
+	}
+	ta.SetHeight(descHeight)
 	ta.ShowLineNumbers = false
 	return ta
 }

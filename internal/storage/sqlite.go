@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"task-queue-mcp/internal/queue"
+	"github.com/AlexiaChen/issue-kanban-mcp/internal/queue"
 
 	_ "modernc.org/sqlite"
 )

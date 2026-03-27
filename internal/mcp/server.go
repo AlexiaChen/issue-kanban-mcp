@@ -2,7 +2,7 @@ package mcp
 
 import (
 	"github.com/mark3labs/mcp-go/server"
-	"task-queue-mcp/internal/queue"
+	"github.com/AlexiaChen/issue-kanban-mcp/internal/queue"
 )
 
 // Server wraps the MCP server with queue management
