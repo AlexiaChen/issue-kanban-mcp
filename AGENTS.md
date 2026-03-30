@@ -152,6 +152,25 @@ make e2e-quick    # e2e against already-running server
 
 ---
 
+## Compound Engineering Integration
+
+This project uses an AI-driven compound engineering workflow. The key artifacts:
+
+| File | Purpose | Who maintains |
+|------|---------|--------------|
+| `instructions/copilot-instructions.md` | Agent operational playbook | Human + Agent (promotion) |
+| `LEARNINGS.md` | Per-issue knowledge capture (append-only) | Agent proposes, human approves |
+| `AGENTS.md` | Project conventions (this file) | Promoted from LEARNINGS.md |
+
+**How it works**: When the AI agent processes an issue via the kanban, it automatically:
+1. Loads `LEARNINGS.md` during pre-flight to avoid repeating past mistakes
+2. Captures new learnings after each issue is marked finished
+3. Proposes promoting frequently-matched learnings to this file
+
+Users don't need to manage this — it happens transparently during normal issue processing.
+
+---
+
 ## Environment Variables
 
 | Variable | Default | Description |
