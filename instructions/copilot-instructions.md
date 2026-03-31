@@ -264,6 +264,49 @@ REPEAT: Next failing test for next behavior
 - Generated code
 - Pure configuration changes
 
+**TDD-Relaxed domains (深度推理优先):**
+
+Some domains are inherently hard to test with traditional RED-GREEN-REFACTOR.
+For these, the agent shifts from "test-first" to **"reason-first, verify-after"**:
+
+| Domain | Why TDD is hard | Alternative discipline |
+|--------|----------------|----------------------|
+| Computer graphics / shaders | Visual output, no simple assertions | Deep reasoning + visual inspection + regression screenshots |
+| CAD / 3D modeling plugins | Geometric results hard to assert, floating-point tolerance | Mathematical proof of correctness + golden-file comparison |
+| Audio / signal processing | Perceptual output, temporal behavior | Analytical validation + reference signal comparison |
+| UI layout / animation | Visual, timing-dependent | Snapshot testing where feasible, manual verification otherwise |
+| ML model training / fine-tuning | Non-deterministic output | Metric-based validation, statistical assertions |
+| Hardware interaction / drivers | Requires physical devices | Integration tests on real hardware, simulation where possible |
+
+**TDD-Relaxed protocol (replaces RED-GREEN-REFACTOR for these domains):**
+
+```
+1. REASON DEEPLY: Use extended thinking / deep analysis before writing code.
+   Understand the math, the algorithm, the edge cases THOROUGHLY.
+   The goal is to get it right the first time — not iterate through test failures.
+
+2. IMPLEMENT WITH CARE: Write the algorithm with inline comments explaining
+   the mathematical reasoning. Each step should be traceable to the theory.
+
+3. VERIFY AFTER: Run the code, inspect the output (visual, numerical, etc.)
+   Compare against known-good references, golden files, or analytical solutions.
+   Add regression tests where feasible (e.g., known input → known output pairs).
+
+4. DOCUMENT THE REASONING: Since tests can't fully capture correctness,
+   the reasoning IS the proof. Document WHY the algorithm is correct,
+   not just WHAT it does.
+```
+
+**The bar is HIGHER, not lower.** TDD-Relaxed doesn't mean "skip testing."
+It means the agent must compensate with deeper reasoning, more careful
+implementation, and alternative verification methods. If you can write a test,
+you MUST — relaxation applies only to the parts that genuinely resist testing.
+
+**Boundary rule:** Pure algorithmic logic within these domains (e.g., a matrix
+multiply, a sort, a data structure) CAN and SHOULD still use standard TDD.
+Only the domain-specific parts (visual output, hardware interaction, perceptual
+quality) get the relaxed protocol.
+
 **Common rationalizations to REJECT:**
 
 | Excuse | Reality |
@@ -795,6 +838,11 @@ Not "might be slow" but "N+1 query, ~200ms/page with 50 items."
 The RED-GREEN-REFACTOR cycle is non-negotiable for production code. Key insight:
 tests written after code pass immediately — passing immediately proves nothing.
 Test-first forces you to see the test fail, proving it actually tests something.
+
+**TDD-Relaxed mode:** For domains where traditional TDD is impractical (graphics,
+CAD, 3D modeling, audio, ML training), the agent shifts to "reason-first, verify-after"
+with deeper thinking, mathematical proof, and alternative verification. The bar is
+HIGHER — compensate with reasoning what you can't capture in assertions.
 
 **Anti-patterns to watch for:**
 - Testing mock behavior instead of real behavior
