@@ -90,7 +90,8 @@ cp instructions/copilot-instructions.md ~/.copilot/copilot-instructions.md
    │            │
    │            ▼
    │         [5c. Compound]
-   │            Capture learnings → append to LEARNINGS.md
+   │            5c-i.  Capture learnings → append to LEARNINGS.md
+   │            5c-ii. Knowledge Alignment → update AGENTS.md + project docs
    │            │
    │            └──► MANDATORY: go back to [2] (DO NOT stop here)
    │
@@ -520,10 +521,14 @@ Escalate after ≥ 3 rounds.
 
 > `status="finished"` is **never** set without user approval. No exceptions.
 
-### 5c. Compound — Capture Learnings
+### 5c. Compound — Capture & Align
 
-> This is the step that turns a task board into a learning system.
-> It takes 10–30 seconds. Over 50 issues, it prevents hours of repeated mistakes.
+> This is the step that turns a task board into a **learning AND knowledge system**.
+> Beyond capturing learnings, it ensures every completed issue leaves the project's
+> documentation better aligned with the actual codebase. Without this, docs drift
+> silently — the agent (and humans) waste time reconciling stale information.
+
+#### 5c-i. Capture Learnings → LEARNINGS.md
 
 Evaluate the 🔄 Learning candidates from 5a:
 
@@ -549,7 +554,50 @@ ask_user(
 If saved → append to `LEARNINGS.md` (create if first time, see Appendix A).
 If skipped → proceed silently. Not every issue produces learnings.
 
-**Then** → **MANDATORY: Go back to Step 2 (Poll) immediately.**
+#### 5c-ii. Knowledge Alignment → AGENTS.md + Project Docs
+
+> **Why**: Design docs, implementation plans, and project knowledge bases (AGENTS.md)
+> diverge from actual code after every implementation. If not corrected immediately,
+> the drift compounds — each subsequent issue starts with stale context.
+
+After capturing learnings, the agent MUST perform knowledge alignment:
+
+**A. AGENTS.md — Always Check (mandatory for code-changing issues):**
+
+Scan the issue's code changes against AGENTS.md sections. Update if the issue:
+- Added/removed/renamed files → update file tree section
+- Added a new feature or modified an existing one → update feature inventory
+- Changed a pattern, API, or convention → update Key Patterns / Critical Rules
+- Modified build steps or added dependencies → update Build & Run
+- Changed architecture or data flow → update Architecture Overview
+
+If no AGENTS.md sections are affected → skip, but log: "AGENTS.md: no updates needed."
+
+**B. Project MD Docs — Scope-Aware Check (for code-changing issues):**
+
+Determine which project `.md` files could be affected:
+1. List all `.md` files in the project (excluding `LEARNINGS.md`, auto-generated docs)
+2. For each doc, check if it references APIs, types, methods, files, or features
+   that were modified by this issue
+3. If divergences found:
+   - Fix them in-place (namespace, method names, field lists, column counts, return types, etc.)
+   - Commit doc alignment changes separately: `docs: align <docname> with <feature> implementation`
+4. If no divergences → skip silently
+
+**Efficiency rules for doc alignment:**
+- Use explore/background agents to parallelize when checking >2 docs
+- Combine all doc fixes into a single commit (unless they span unrelated docs)
+- After agent-driven edits, always check `git diff --stat` for unintended
+  line-ending/encoding changes and discard them before committing
+- Timebox: If >5 docs need checking, spend ≤2 minutes per doc. Flag complex
+  divergences as follow-up issues rather than fixing inline.
+
+**Trigger threshold (skip doc alignment when):**
+- The issue was a pure learning/re-learning task (no code changes)
+- The issue was a 1-file doc-only fix
+- The issue only touched LEARNINGS.md or AGENTS.md themselves
+
+**After alignment → MANDATORY: Go back to Step 2 (Poll) immediately.**
 Do NOT stop here. Do NOT assume the work is done just because one issue finished.
 Even if this was the only pending issue, you MUST return to Step 2 so that the
 empty-queue path triggers Step 6 (Drain Gate) which calls `ask_user`.
@@ -620,6 +668,7 @@ Project '<name>':
 
 📝 Learnings captured: L-NNN, L-NNN, ...
 📈 Promotions suggested: L-NNN (matched N times)
+📄 Docs aligned: AGENTS.md, <doc1>.md, <doc2>.md (or "none needed")
 
 Follow-ups surfaced:
   - Issue #<id>: <observation>
@@ -696,7 +745,7 @@ ask_user(
 | 10 | Complete > shortcut | AI compression makes it cheap |
 | 11 | Research before coding | Reinventing > checking cost |
 | 12 | Evidence-first (file:line) | Vague findings waste time |
-| 13 | Compound after every issue | Each issue → next one easier |
+| 13 | Compound after every issue | Each issue → next one easier + docs stay aligned |
 | 14 | No fix without root cause | Symptoms ≠ solutions |
 | 15 | Atomic commits | Independently revertable |
 | 16 | Confirm destructive ops | `rm -rf`, `DROP`, `force-push` |
@@ -772,7 +821,7 @@ for `~/.copilot/copilot-instructions.md` during the compound step (Step 5d).
 
 **Compound Engineering** (Every.to): Each unit of work makes the next easier, not harder.
 Plan → Work → Assess → Compound. 80% effort in plan+review. The compound step captures
-learnings so future cycles inherit today's discoveries.
+learnings AND aligns documentation so future cycles inherit today's discoveries with accurate context.
 
 **Boil the Lake** (gstack): AI compression makes completeness near-zero cost.
 Always choose 100% over 90%. Boilerplate: 100x compression. Tests: 50x. Features: 30x.
@@ -928,6 +977,7 @@ The agent MUST call `ask_user` (the tool, not a text question) at these points:
 | 3c | Complex issue design | Design approval |
 | 5b | Review complete | "Mark finished" vs "Improvements needed" |
 | 5c | Learnings captured | "Save" / "Edit" / "Skip" |
+| 5c-ii | Docs aligned (if code changed) | No ask_user needed; auto-check + commit |
 | 6 | Queue empty | "Re-check" / "Switch project" / "Final report" |
 | 7 | Session ending | "Done" / "Continue" / "Add notes" |
 
