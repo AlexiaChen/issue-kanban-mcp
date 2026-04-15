@@ -26,8 +26,13 @@ internal/
 ├── apiclient/client.go  # Shared REST client (used by TUI & CLI)
 ├── mcp/
 │   ├── server.go        # MCP server setup & routing
-│   ├── tools.go         # 8 MCP tools (3 readonly + 5 admin)
+│   ├── tools.go         # 12 MCP tools (5 readonly + 7 admin)
 │   └── resources.go     # 4 MCP resources
+├── memory/
+│   ├── models.go        # Memory data model, categories, DTOs, errors
+│   ├── storage.go       # memory.Storage interface (6 methods)
+│   ├── manager.go       # MemoryManager: validation, dedup, normalization
+│   └── mock_storage.go  # In-memory mock for unit tests
 ├── queue/
 │   ├── manager.go       # Business logic layer (always use this, not storage directly)
 │   ├── models.go        # Data models: Project, Issue, Priority, Status
@@ -62,6 +67,25 @@ type Issue struct {
     Status      string    // pending | doing | finished
     Priority    Priority  // 0=low 1=medium 2=high
     Position    int       // ordering within same priority
+    CreatedAt   time.Time
+    UpdatedAt   time.Time
+}
+```
+
+### Memory
+
+```go
+// Category: "decision" | "fact" | "event" | "preference" | "advice" | "general"
+
+type Memory struct {
+    ID          int64
+    ProjectID   int
+    Content     string
+    Summary     string     // optional one-line summary
+    Category    string
+    Tags        string     // comma-separated
+    Importance  int        // 1-5 (default 3)
+    ContentHash string     // SHA-256 for dedup
     CreatedAt   time.Time
     UpdatedAt   time.Time
 }
@@ -109,6 +133,14 @@ make e2e-quick    # e2e against already-running server
 | DELETE | `/api/issues/{id}` | Delete issue |
 | POST | `/api/issues/{id}/prioritize` | Move to front (插队) |
 
+### Memories
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/projects/{id}/memories` | Store memory (dedup by content hash) |
+| GET | `/api/projects/{id}/memories` | List memories (`category?`, `limit?`, `offset?`) |
+| GET | `/api/projects/{id}/memories/search` | Search memories (`q`, `category?`, `limit?`) |
+| DELETE | `/api/projects/{id}/memories/{mid}` | Delete memory |
+
 ---
 
 ## MCP Tools
@@ -119,9 +151,11 @@ make e2e-quick    # e2e against already-running server
 | `project_list` | — |
 | `issue_list` | `project_id`, `status?` |
 | `issue_update` | `task_id`, `status` |
+| `memory_search` | `project_id`, `query`, `category?`, `limit?` |
+| `memory_list` | `project_id`, `category?`, `limit?`, `offset?` |
 
 ### Admin (require `-readonly=false`)
-`project_create`, `project_delete`, `issue_create`, `issue_delete`, `issue_prioritize`
+`project_create`, `project_delete`, `issue_create`, `issue_delete`, `issue_prioritize`, `memory_store`, `memory_delete`
 
 ---
 
@@ -145,8 +179,8 @@ make e2e-quick    # e2e against already-running server
 
 ## Code Conventions
 
-- **Business logic**: always go through `queue.Manager`, never call `storage` directly
-- **Testing**: use `queue.NewMockStorage()` — tests must not require a real DB or server
+- **Business logic**: always go through `queue.Manager` / `memory.MemoryManager`, never call `storage` directly
+- **Testing**: use `queue.NewMockStorage()` / `memory.NewMockMemoryStorage()` — tests must not require a real DB or server
 - **TDD discipline**: RED-GREEN-REFACTOR for all new code. Write failing test first, implement minimal code to pass, refactor. No production code without a failing test. See Step 4b in the playbook.
 - **Systematic debugging**: For any bug fix, follow the 4-phase root cause protocol (Step 4d) before attempting fixes. No random fix-and-check cycles.
 - **Verification before completion**: Run `make test` and verify output BEFORE claiming tests pass. Evidence before claims, always.
