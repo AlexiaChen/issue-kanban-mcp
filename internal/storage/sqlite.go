@@ -534,7 +534,7 @@ func (s *SQLiteStorage) SearchMemories(ctx context.Context, projectID int64, que
 		args = append(args, opts.Category)
 	}
 
-	sqlQuery += ` ORDER BY rank LIMIT ?`
+	sqlQuery += ` ORDER BY rank, m.importance DESC, m.updated_at DESC LIMIT ?`
 	args = append(args, limit)
 
 	rows, err := s.db.QueryContext(ctx, sqlQuery, args...)
@@ -704,7 +704,8 @@ func runMigrations(db *sql.DB) error {
 			summary,
 			tags,
 			content='memories',
-			content_rowid='id'
+			content_rowid='id',
+			tokenize='unicode61'
 		);
 	`)
 	if err != nil {
@@ -726,6 +727,18 @@ func runMigrations(db *sql.DB) error {
 		CREATE TRIGGER IF NOT EXISTS memories_ad AFTER DELETE ON memories BEGIN
 			INSERT INTO memories_fts(memories_fts, rowid, content, summary, tags)
 			VALUES ('delete', old.id, old.content, old.summary, old.tags);
+		END;
+	`)
+	if err != nil {
+		return err
+	}
+
+	_, err = db.Exec(`
+		CREATE TRIGGER IF NOT EXISTS memories_au AFTER UPDATE ON memories BEGIN
+			INSERT INTO memories_fts(memories_fts, rowid, content, summary, tags)
+			VALUES ('delete', old.id, old.content, old.summary, old.tags);
+			INSERT INTO memories_fts(rowid, content, summary, tags)
+			VALUES (new.id, new.content, new.summary, new.tags);
 		END;
 	`)
 	if err != nil {

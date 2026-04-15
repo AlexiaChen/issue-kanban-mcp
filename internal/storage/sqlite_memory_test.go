@@ -228,6 +228,59 @@ func TestSQLiteMemory_Search(t *testing.T) {
 	})
 }
 
+func TestSQLiteMemory_SearchBM25WithImportanceTiebreaker(t *testing.T) {
+	store, cleanup := setupMemoryTestDB(t)
+	defer cleanup()
+	ctx := context.Background()
+
+	proj := createTestProject(t, store, "bm25-tiebreak")
+	pid := int64(proj.ID)
+
+	// Use identical structure (same word count, same search term position)
+	// so FTS5 BM25 produces effectively equal scores.
+	mems := []memory.StoreMemoryInput{
+		{ProjectID: pid, Content: "concurrency note alpha one", Category: "fact", Importance: 2, ContentHash: "bm25-low"},
+		{ProjectID: pid, Content: "concurrency note beta one", Category: "fact", Importance: 5, ContentHash: "bm25-high"},
+		{ProjectID: pid, Content: "concurrency note gamma one", Category: "fact", Importance: 3, ContentHash: "bm25-mid"},
+	}
+	for _, m := range mems {
+		if _, err := store.StoreMemory(ctx, m); err != nil {
+			t.Fatalf("store failed: %v", err)
+		}
+	}
+
+	results, err := store.SearchMemories(ctx, pid, "concurrency", memory.SearchOptions{Limit: 10})
+	if err != nil {
+		t.Fatalf("search failed: %v", err)
+	}
+	if len(results) != 3 {
+		t.Fatalf("expected 3 results, got %d", len(results))
+	}
+
+	// With near-identical BM25 scores, the importance tiebreaker should
+	// produce descending importance order: 5, 3, 2
+	const epsilon = 1e-6
+	for i := 1; i < len(results); i++ {
+		prevRank := results[i-1].Rank
+		currRank := results[i].Rank
+		diff := prevRank - currRank
+		if diff < 0 {
+			diff = -diff
+		}
+		if diff < epsilon {
+			// BM25 scores effectively equal → importance must be descending
+			if results[i-1].Importance < results[i].Importance {
+				t.Errorf("at similar BM25 (diff=%.2e), result[%d] importance=%d should >= result[%d] importance=%d",
+					diff, i-1, results[i-1].Importance, i, results[i].Importance)
+			}
+		}
+	}
+	t.Logf("BM25 search results: rank=%.15f imp=%d | rank=%.15f imp=%d | rank=%.15f imp=%d",
+		results[0].Rank, results[0].Importance,
+		results[1].Rank, results[1].Importance,
+		results[2].Rank, results[2].Importance)
+}
+
 func TestSQLiteMemory_List(t *testing.T) {
 	store, cleanup := setupMemoryTestDB(t)
 	defer cleanup()
