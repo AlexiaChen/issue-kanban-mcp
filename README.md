@@ -490,6 +490,9 @@ The harness engineering approach in this project draws from:
   each unit of work should make the next one easier through explicit knowledge capture.
 - **[gstack](https://github.com/garrytans-at-yc/gstack)** — Boil the Lake (AI makes
   completeness cheap), Search Before Building, User Sovereignty, Evidence-First review.
+- **[mempalace](https://github.com/MemPalace/mempalace)** — The highest-scoring AI memory system ever benchmarked. And it's free.
+- **[mempalace-book](https://github.com/ZhangHanDong/mempalace-book)** - First Principles of AI Memory.
+- **[gbrain](https://github.com/garrytan/gbrain)** - Garry's Opinionated OpenClaw/Hermes Agent Brain.
 
 These principles are embedded directly in the agent workflow, not as philosophy —
 as operational steps the agent executes automatically.
