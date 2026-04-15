@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	mcplib "github.com/mark3labs/mcp-go/mcp"
+	"github.com/AlexiaChen/issue-kanban-mcp/internal/memory"
 	"github.com/AlexiaChen/issue-kanban-mcp/internal/queue"
 )
 
@@ -102,6 +103,90 @@ func (s *Server) registerTools() error {
 			mcplib.Enum("pending", "doing", "finished"),
 		),
 	), s.handleIssueUpdate)
+
+	// Memory tools (only if memory manager is configured)
+	if s.memoryManager != nil {
+		// Readonly memory tools
+		s.mcp.AddTool(mcplib.NewTool("memory_search",
+			mcplib.WithDescription("Search memories using full-text search within a project"),
+			mcplib.WithNumber("project_id",
+				mcplib.Required(),
+				mcplib.Description("ID of the project to search in"),
+			),
+			mcplib.WithString("query",
+				mcplib.Required(),
+				mcplib.Description("Search query string"),
+			),
+			mcplib.WithString("category",
+				mcplib.Description("Filter by category: decision, fact, event, preference, advice, general"),
+				mcplib.Enum("decision", "fact", "event", "preference", "advice", "general"),
+			),
+			mcplib.WithNumber("limit",
+				mcplib.Description("Maximum number of results (default: 20)"),
+			),
+		), s.handleMemorySearch)
+
+		s.mcp.AddTool(mcplib.NewTool("memory_list",
+			mcplib.WithDescription("List memories in a project, optionally filtered by category"),
+			mcplib.WithNumber("project_id",
+				mcplib.Required(),
+				mcplib.Description("ID of the project"),
+			),
+			mcplib.WithString("category",
+				mcplib.Description("Filter by category: decision, fact, event, preference, advice, general"),
+				mcplib.Enum("decision", "fact", "event", "preference", "advice", "general"),
+			),
+			mcplib.WithNumber("limit",
+				mcplib.Description("Maximum number of results (default: 50)"),
+			),
+			mcplib.WithNumber("offset",
+				mcplib.Description("Offset for pagination (default: 0)"),
+			),
+		), s.handleMemoryList)
+
+		// Admin-only memory tools
+		if !s.readonly {
+			s.mcp.AddTool(mcplib.NewTool("memory_store",
+				mcplib.WithDescription("Store a new memory in a project. Deduplicates by content hash."),
+				mcplib.WithNumber("project_id",
+					mcplib.Required(),
+					mcplib.Description("ID of the project"),
+				),
+				mcplib.WithString("content",
+					mcplib.Required(),
+					mcplib.Description("Memory content text (max 50KB)"),
+				),
+				mcplib.WithString("summary",
+					mcplib.Description("Brief summary of the memory"),
+				),
+				mcplib.WithString("category",
+					mcplib.Description("Category: decision, fact, event, preference, advice, general (default: general)"),
+					mcplib.Enum("decision", "fact", "event", "preference", "advice", "general"),
+				),
+				mcplib.WithString("tags",
+					mcplib.Description("Comma-separated tags"),
+				),
+				mcplib.WithString("source",
+					mcplib.Description("Source of the memory"),
+				),
+				mcplib.WithNumber("importance",
+					mcplib.Description("Importance level 1-5 (default: 3)"),
+				),
+			), s.handleMemoryStore)
+
+			s.mcp.AddTool(mcplib.NewTool("memory_delete",
+				mcplib.WithDescription("Delete a memory from a project"),
+				mcplib.WithNumber("project_id",
+					mcplib.Required(),
+					mcplib.Description("ID of the project the memory belongs to"),
+				),
+				mcplib.WithNumber("memory_id",
+					mcplib.Required(),
+					mcplib.Description("ID of the memory to delete"),
+				),
+			), s.handleMemoryDelete)
+		}
+	}
 
 	return nil
 }
@@ -297,4 +382,112 @@ func (s *Server) handleIssuePrioritize(ctx context.Context, req mcplib.CallToolR
 	}
 
 	return mcplib.NewToolResultText(fmt.Sprintf("Issue prioritized successfully:\n%s", string(data))), nil
+}
+
+// Memory handlers
+
+func (s *Server) handleMemorySearch(ctx context.Context, req mcplib.CallToolRequest) (*mcplib.CallToolResult, error) {
+	projectID, err := req.RequireInt("project_id")
+	if err != nil {
+		return mcplib.NewToolResultError(err.Error()), nil
+	}
+
+	query, err := req.RequireString("query")
+	if err != nil {
+		return mcplib.NewToolResultError(err.Error()), nil
+	}
+
+	opts := memory.SearchOptions{
+		Category: req.GetString("category", ""),
+		Limit:    req.GetInt("limit", 0),
+	}
+
+	results, err := s.memoryManager.Search(ctx, int64(projectID), query, opts)
+	if err != nil {
+		return mcplib.NewToolResultError(fmt.Sprintf("Failed to search memories: %v", err)), nil
+	}
+
+	data, err := json.MarshalIndent(results, "", "  ")
+	if err != nil {
+		return mcplib.NewToolResultError(fmt.Sprintf("Failed to marshal result: %v", err)), nil
+	}
+
+	return mcplib.NewToolResultText(string(data)), nil
+}
+
+func (s *Server) handleMemoryList(ctx context.Context, req mcplib.CallToolRequest) (*mcplib.CallToolResult, error) {
+	projectID, err := req.RequireInt("project_id")
+	if err != nil {
+		return mcplib.NewToolResultError(err.Error()), nil
+	}
+
+	opts := memory.ListOptions{
+		Category: req.GetString("category", ""),
+		Limit:    req.GetInt("limit", 0),
+		Offset:   req.GetInt("offset", 0),
+	}
+
+	mems, err := s.memoryManager.List(ctx, int64(projectID), opts)
+	if err != nil {
+		return mcplib.NewToolResultError(fmt.Sprintf("Failed to list memories: %v", err)), nil
+	}
+
+	data, err := json.MarshalIndent(mems, "", "  ")
+	if err != nil {
+		return mcplib.NewToolResultError(fmt.Sprintf("Failed to marshal result: %v", err)), nil
+	}
+
+	return mcplib.NewToolResultText(string(data)), nil
+}
+
+func (s *Server) handleMemoryStore(ctx context.Context, req mcplib.CallToolRequest) (*mcplib.CallToolResult, error) {
+	projectID, err := req.RequireInt("project_id")
+	if err != nil {
+		return mcplib.NewToolResultError(err.Error()), nil
+	}
+
+	content, err := req.RequireString("content")
+	if err != nil {
+		return mcplib.NewToolResultError(err.Error()), nil
+	}
+
+	input := memory.StoreMemoryInput{
+		ProjectID:  int64(projectID),
+		Content:    content,
+		Summary:    req.GetString("summary", ""),
+		Category:   req.GetString("category", ""),
+		Tags:       req.GetString("tags", ""),
+		Source:     req.GetString("source", ""),
+		Importance: req.GetInt("importance", 0),
+	}
+
+	mem, err := s.memoryManager.Store(ctx, input)
+	if err != nil {
+		return mcplib.NewToolResultError(fmt.Sprintf("Failed to store memory: %v", err)), nil
+	}
+
+	data, err := json.MarshalIndent(mem, "", "  ")
+	if err != nil {
+		return mcplib.NewToolResultError(fmt.Sprintf("Failed to marshal result: %v", err)), nil
+	}
+
+	return mcplib.NewToolResultText(fmt.Sprintf("Memory stored successfully:\n%s", string(data))), nil
+}
+
+func (s *Server) handleMemoryDelete(ctx context.Context, req mcplib.CallToolRequest) (*mcplib.CallToolResult, error) {
+	projectID, err := req.RequireInt("project_id")
+	if err != nil {
+		return mcplib.NewToolResultError(err.Error()), nil
+	}
+
+	memoryID, err := req.RequireInt("memory_id")
+	if err != nil {
+		return mcplib.NewToolResultError(err.Error()), nil
+	}
+
+	if err := s.memoryManager.Delete(ctx, int64(projectID), int64(memoryID)); err != nil {
+		return mcplib.NewToolResultError(fmt.Sprintf("Failed to delete memory: %v", err)), nil
+	}
+
+	return mcplib.NewToolResultText(fmt.Sprintf("Memory %d deleted successfully from project %d", memoryID, projectID)), nil
 }

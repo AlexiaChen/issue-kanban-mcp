@@ -5,17 +5,24 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/AlexiaChen/issue-kanban-mcp/internal/memory"
 	"github.com/AlexiaChen/issue-kanban-mcp/internal/queue"
 )
 
 // Handler provides REST API handlers
 type Handler struct {
-	manager *queue.Manager
+	manager       *queue.Manager
+	memoryManager *memory.MemoryManager
 }
 
 // NewHandler creates a new API handler
 func NewHandler(manager *queue.Manager) *Handler {
 	return &Handler{manager: manager}
+}
+
+// SetMemoryManager sets the memory manager for memory API endpoints
+func (h *Handler) SetMemoryManager(mm *memory.MemoryManager) {
+	h.memoryManager = mm
 }
 
 // RegisterRoutes registers API routes
@@ -37,6 +44,14 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/issues/{id}/prioritize", h.PrioritizeIssue)
 	mux.HandleFunc("POST /api/issues/{id}/start", h.StartIssue)
 	mux.HandleFunc("POST /api/issues/{id}/finish", h.FinishIssue)
+
+	// Memory endpoints (only if memory manager is configured)
+	if h.memoryManager != nil {
+		mux.HandleFunc("POST /api/projects/{id}/memories", h.StoreMemory)
+		mux.HandleFunc("GET /api/projects/{id}/memories", h.ListMemories)
+		mux.HandleFunc("GET /api/projects/{id}/memories/search", h.SearchMemories)
+		mux.HandleFunc("DELETE /api/projects/{id}/memories/{mid}", h.DeleteMemory)
+	}
 }
 
 // Queue handlers
@@ -348,6 +363,138 @@ func (h *Handler) FinishIssue(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.writeJSON(w, http.StatusOK, task)
+}
+
+// Memory handlers
+
+func (h *Handler) StoreMemory(w http.ResponseWriter, r *http.Request) {
+	projectID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		h.writeError(w, http.StatusBadRequest, "invalid project ID")
+		return
+	}
+
+	var input memory.StoreMemoryInput
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		h.writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+	input.ProjectID = projectID
+
+	mem, err := h.memoryManager.Store(r.Context(), input)
+	if err != nil {
+		status := http.StatusInternalServerError
+		switch err {
+		case memory.ErrEmptyContent, memory.ErrContentTooLong, memory.ErrInvalidCategory, memory.ErrInvalidImportance:
+			status = http.StatusBadRequest
+		}
+		h.writeError(w, status, err.Error())
+		return
+	}
+
+	h.writeJSON(w, http.StatusCreated, mem)
+}
+
+func (h *Handler) ListMemories(w http.ResponseWriter, r *http.Request) {
+	projectID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		h.writeError(w, http.StatusBadRequest, "invalid project ID")
+		return
+	}
+
+	opts := memory.ListOptions{
+		Category: r.URL.Query().Get("category"),
+	}
+	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+		if opts.Limit, err = strconv.Atoi(limitStr); err != nil {
+			h.writeError(w, http.StatusBadRequest, "invalid limit")
+			return
+		}
+	}
+	if offsetStr := r.URL.Query().Get("offset"); offsetStr != "" {
+		if opts.Offset, err = strconv.Atoi(offsetStr); err != nil {
+			h.writeError(w, http.StatusBadRequest, "invalid offset")
+			return
+		}
+	}
+
+	mems, err := h.memoryManager.List(r.Context(), projectID, opts)
+	if err != nil {
+		h.writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if mems == nil {
+		mems = []*memory.Memory{}
+	}
+
+	h.writeJSON(w, http.StatusOK, mems)
+}
+
+func (h *Handler) SearchMemories(w http.ResponseWriter, r *http.Request) {
+	projectID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		h.writeError(w, http.StatusBadRequest, "invalid project ID")
+		return
+	}
+
+	query := r.URL.Query().Get("q")
+	if query == "" {
+		h.writeError(w, http.StatusBadRequest, "query parameter 'q' is required")
+		return
+	}
+
+	opts := memory.SearchOptions{
+		Category: r.URL.Query().Get("category"),
+	}
+	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+		if opts.Limit, err = strconv.Atoi(limitStr); err != nil {
+			h.writeError(w, http.StatusBadRequest, "invalid limit")
+			return
+		}
+	}
+
+	results, err := h.memoryManager.Search(r.Context(), projectID, query, opts)
+	if err != nil {
+		status := http.StatusInternalServerError
+		if err == memory.ErrEmptyQuery || err == memory.ErrInvalidCategory {
+			status = http.StatusBadRequest
+		}
+		h.writeError(w, status, err.Error())
+		return
+	}
+	if results == nil {
+		results = []memory.MemorySearchResult{}
+	}
+
+	h.writeJSON(w, http.StatusOK, results)
+}
+
+func (h *Handler) DeleteMemory(w http.ResponseWriter, r *http.Request) {
+	projectID, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+	if err != nil {
+		h.writeError(w, http.StatusBadRequest, "invalid project ID")
+		return
+	}
+
+	memoryID, err := strconv.ParseInt(r.PathValue("mid"), 10, 64)
+	if err != nil {
+		h.writeError(w, http.StatusBadRequest, "invalid memory ID")
+		return
+	}
+
+	if err := h.memoryManager.Delete(r.Context(), projectID, memoryID); err != nil {
+		status := http.StatusInternalServerError
+		switch err {
+		case memory.ErrMemoryNotFound:
+			status = http.StatusNotFound
+		case memory.ErrMemoryNotInProject:
+			status = http.StatusForbidden
+		}
+		h.writeError(w, status, err.Error())
+		return
+	}
+
+	h.writeJSON(w, http.StatusOK, map[string]string{"message": "memory deleted"})
 }
 
 // Helper functions

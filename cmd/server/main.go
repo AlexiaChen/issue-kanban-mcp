@@ -15,6 +15,7 @@ import (
 
 	mcplib "github.com/AlexiaChen/issue-kanban-mcp/internal/mcp"
 	"github.com/AlexiaChen/issue-kanban-mcp/internal/api"
+	"github.com/AlexiaChen/issue-kanban-mcp/internal/memory"
 	"github.com/AlexiaChen/issue-kanban-mcp/internal/queue"
 	"github.com/AlexiaChen/issue-kanban-mcp/internal/storage"
 	"github.com/AlexiaChen/issue-kanban-mcp/internal/web"
@@ -43,8 +44,14 @@ func main() {
 	// Initialize queue manager
 	manager := queue.NewManager(store)
 
+	// Initialize memory manager
+	memManager := memory.NewMemoryManager(store)
+
 	// Create MCP server
-	mcpServer, err := mcplib.NewServer(manager, mcplib.WithReadonlyMode(*readonly))
+	mcpServer, err := mcplib.NewServer(manager,
+		mcplib.WithReadonlyMode(*readonly),
+		mcplib.WithMemoryManager(memManager),
+	)
 	if err != nil {
 		log.Fatalf("Failed to create MCP server: %v", err)
 	}
@@ -85,6 +92,7 @@ func main() {
 
 	// Register REST API
 	apiHandler := api.NewHandler(manager)
+	apiHandler.SetMemoryManager(memManager)
 	apiHandler.RegisterRoutes(mux)
 
 	// Serve static files

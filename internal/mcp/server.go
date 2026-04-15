@@ -2,14 +2,16 @@ package mcp
 
 import (
 	"github.com/mark3labs/mcp-go/server"
+	"github.com/AlexiaChen/issue-kanban-mcp/internal/memory"
 	"github.com/AlexiaChen/issue-kanban-mcp/internal/queue"
 )
 
 // Server wraps the MCP server with queue management
 type Server struct {
-	mcp      *server.MCPServer
-	manager  *queue.Manager
-	readonly bool
+	mcp           *server.MCPServer
+	manager       *queue.Manager
+	memoryManager *memory.MemoryManager
+	readonly      bool
 }
 
 // ServerOption is a function that configures the server
@@ -19,6 +21,13 @@ type ServerOption func(*Server)
 func WithReadonlyMode(readonly bool) ServerOption {
 	return func(s *Server) {
 		s.readonly = readonly
+	}
+}
+
+// WithMemoryManager configures the server with a memory manager
+func WithMemoryManager(mm *memory.MemoryManager) ServerOption {
+	return func(s *Server) {
+		s.memoryManager = mm
 	}
 }
 
