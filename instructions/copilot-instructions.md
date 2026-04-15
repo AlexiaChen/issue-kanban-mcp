@@ -2,7 +2,8 @@
 
 > The issue kanban's `pending → doing → finished` loop is a compound engineering cycle.
 > Each issue processed makes the next one easier — not through philosophy, but through
-> a concrete learning mechanism (`LEARNINGS.md`) and quality gates woven into every step.
+> a concrete learning mechanism (`LEARNINGS.md`), a persistent memory system (FTS5/BM25
+> via MCP), and quality gates woven into every step.
 >
 > Users just create issues. The agent handles the rest. Quality improves automatically over time.
 
@@ -20,6 +21,7 @@ cp instructions/copilot-instructions.md ~/.copilot/copilot-instructions.md
 | `~/.copilot/copilot-instructions.md` | Global — this file |
 | `AGENTS.md` | Project knowledge base |
 | `LEARNINGS.md` | Project learning memory (agent-maintained) |
+| SQLite DB (via MCP memory tools) | Project persistent memory (BM25-searchable) |
 
 ---
 
@@ -66,7 +68,7 @@ cp instructions/copilot-instructions.md ~/.copilot/copilot-instructions.md
    │
    ▼
 [3. Pre-flight]
-   │  3a. Load LEARNINGS.md → match keywords → show relevant learnings
+   │  3a. Load knowledge → LEARNINGS.md keywords + memory_search (BM25)
    │  3b. Unclear requirements? → ask_user → loop until clear
    │  3c. Complexity assessment → simple: proceed / complex: design gate (ask_user)
    │  issue_update(status="doing")
@@ -91,7 +93,8 @@ cp instructions/copilot-instructions.md ~/.copilot/copilot-instructions.md
    │            ▼
    │         [5c. Compound]
    │            5c-i.  Capture learnings → append to LEARNINGS.md
-   │            5c-ii. Knowledge Alignment → update AGENTS.md + project docs
+   │            5c-ii. Store memories → memory_store (decisions, facts, preferences)
+   │            5c-iii. Knowledge Alignment → update AGENTS.md + project docs
    │            │
    │            └──► MANDATORY: go back to [2] (DO NOT stop here)
    │
@@ -157,7 +160,12 @@ discover the empty queue, and proceed to Step 6 where `ask_user` is called.
 > **This is where compound engineering pays off.** Before writing code, the agent
 > loads the project's accumulated knowledge and checks it against the current issue.
 
-### 3a. Load Learnings
+### 3a. Load Knowledge
+
+> Two complementary knowledge sources: LEARNINGS.md for mistake-driven patterns,
+> Memory system for rich contextual knowledge. Load both before starting work.
+
+**Part 1 — LEARNINGS.md (mistake avoidance):**
 
 If `LEARNINGS.md` exists in the project root:
 1. Read the file, extract all `Trigger` keyword lists
@@ -170,6 +178,25 @@ If `LEARNINGS.md` exists in the project root:
    ```
 4. No matches → proceed normally (learnings still in context)
 5. No file yet → proceed (will be created at first compound step)
+
+**Part 2 — Memory search (context enrichment):**
+
+If the MCP memory tools are available (`memory_search`):
+1. Extract 2-4 key terms from issue `title + description`
+2. Call `memory_search(project_id, query=<key terms>)` to find relevant memories
+3. If results found, show them alongside learnings:
+   ```
+   🧠 Relevant memories for Issue #<id>:
+     [decision] "Chose FTS5 over vector search due to CGO_ENABLED=0 constraint"
+       (importance: 8, from issue #35)
+     [fact] "DeleteProject cascades manually: memories → tasks → queues"
+       (importance: 7, from issue #35)
+   ```
+4. Factor high-importance memories (≥7) into execution plan
+5. No results or no memory tools available → proceed normally
+
+> Memory search is additive — it enriches context but never blocks progress.
+> If the MCP server doesn't have memory tools, skip silently.
 
 ### 3b. Clarity Check
 
@@ -554,7 +581,32 @@ ask_user(
 If saved → append to `LEARNINGS.md` (create if first time, see Appendix A).
 If skipped → proceed silently. Not every issue produces learnings.
 
-#### 5c-ii. Knowledge Alignment → AGENTS.md + Project Docs
+#### 5c-ii. Store Memories → memory_store
+
+> LEARNINGS.md captures mistake-driven patterns (structured, keyword-triggered).
+> The memory system captures broader context that enriches future issue processing.
+
+After capturing learnings, evaluate whether the issue produced knowledge worth
+persisting in the memory system. Use `memory_store` for:
+
+| Category | What to store | Example |
+|----------|--------------|---------|
+| `decision` | Architecture choices with rationale | "Chose FTS5 over vector search: CGO_ENABLED=0 constraint rules out sqlite-vec" |
+| `fact` | Codebase facts discovered during work | "DeleteProject cascades manually because PRAGMA foreign_keys is OFF" |
+| `preference` | User preferences expressed during HITL | "User prefers epsilon comparison over exact float equality in tests" |
+| `event` | Significant project events | "Migrated from FTS4 to FTS5 for BM25 ranking support" |
+| `advice` | Reusable guidance for similar tasks | "When adding FTS5 tables, always create INSERT + DELETE + UPDATE triggers" |
+
+**Protocol:**
+1. Review the issue's work for memory-worthy context (not already in LEARNINGS.md)
+2. If candidates exist, store them via `memory_store(project_id, content, category, importance)`
+3. Set importance based on reuse likelihood: 8-10 = architectural, 5-7 = useful context, 1-4 = minor
+4. No candidates → skip silently. Not every issue produces memories.
+
+> Memory storage is silent — no `ask_user` needed. The agent stores what's useful,
+> and memories are retrievable via BM25 search in future pre-flight (Step 3a).
+
+#### 5c-iii. Knowledge Alignment → AGENTS.md + Project Docs
 
 > **Why**: Design docs, implementation plans, and project knowledge bases (AGENTS.md)
 > diverge from actual code after every implementation. If not corrected immediately,
@@ -667,6 +719,7 @@ Project '<name>':
   ❌ Failed/stuck: N
 
 📝 Learnings captured: L-NNN, L-NNN, ...
+🧠 Memories stored: N (decisions: X, facts: Y, ...)
 📈 Promotions suggested: L-NNN (matched N times)
 📄 Docs aligned: AGENTS.md, <doc1>.md, <doc2>.md (or "none needed")
 
@@ -723,9 +776,12 @@ ask_user(
 | `project_list` | — |
 | `issue_list` | `project_id`, `status?` |
 | `issue_update` | `task_id`, `status` |
+| `memory_search` | `project_id`, `query`, `category?`, `limit?` |
+| `memory_list` | `project_id`, `category?`, `limit?` |
 
 **Admin** (`-readonly=false`):
-`project_create`, `project_delete`, `issue_create`, `issue_delete`, `issue_prioritize`
+`project_create`, `project_delete`, `issue_create`, `issue_delete`, `issue_prioritize`,
+`memory_store`, `memory_delete`
 
 ---
 
@@ -976,8 +1032,9 @@ The agent MUST call `ask_user` (the tool, not a text question) at these points:
 | 3b | Requirements unclear | Structured clarification question |
 | 3c | Complex issue design | Design approval |
 | 5b | Review complete | "Mark finished" vs "Improvements needed" |
-| 5c | Learnings captured | "Save" / "Edit" / "Skip" |
-| 5c-ii | Docs aligned (if code changed) | No ask_user needed; auto-check + commit |
+| 5c-i | Learnings captured | "Save" / "Edit" / "Skip" |
+| 5c-ii | Memories stored | No ask_user needed; agent stores silently |
+| 5c-iii | Docs aligned (if code changed) | No ask_user needed; auto-check + commit |
 | 6 | Queue empty | "Re-check" / "Switch project" / "Final report" |
 | 7 | Session ending | "Done" / "Continue" / "Add notes" |
 

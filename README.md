@@ -5,8 +5,8 @@
 [![Go Report Card](https://goreportcard.com/badge/github.com/AlexiaChen/issue-kanban-mcp)](https://goreportcard.com/report/github.com/AlexiaChen/issue-kanban-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-An AI-native issue kanban with built-in harness engineering — every completed task
-makes the next one faster, safer, and smarter.
+An AI-native issue kanban with built-in harness engineering and persistent memory —
+every completed task makes the next one faster, safer, and smarter.
 
 ## Why This Exists
 
@@ -15,9 +15,10 @@ miss the same edge cases, and forget the same gotchas — every single time.
 
 This project fixes that. It combines a multi-interface kanban board (Web UI, TUI, CLI)
 with an [MCP](https://modelcontextprotocol.io/) server that AI agents connect to,
-plus an operational playbook that implements **harness engineering**: structured quality
-gates, human-in-the-loop checkpoints, and a compound learning system (`LEARNINGS.md`)
-that accumulates project knowledge across issues.
+a **persistent memory system** (FTS5 full-text search with BM25 ranking), and an
+operational playbook that implements **harness engineering**: structured quality
+gates, human-in-the-loop checkpoints, and a compound learning system that
+accumulates project knowledge across issues.
 
 The result: your AI agent gets measurably better at working on your project over time —
 without any extra effort from you.
@@ -32,14 +33,16 @@ You create issues ──► AI agent picks them up ──► Quality improves au
                     │                                      │
                     │  [pending]                            │
                     │     │  Load LEARNINGS.md              │
-                    │     │  Check past mistakes            │
+                    │     │  Search memory (BM25)           │
+                    │     │  Check past mistakes + context  │
                     │     ▼                                 │
                     │  [doing]                              │
                     │     │  Research → Implement → Review  │
                     │     │  Two-pass quality gate          │
                     │     ▼                                 │
                     │  [finished]                           │
-                    │     │  Capture learnings ◄── NEW!     │
+                    │     │  Capture learnings ◄── gotchas  │
+                    │     │  Store memories ◄── context     │
                     │     │  Knowledge persists             │
                     │     ▼                                 │
                     │  ──► Next issue inherits knowledge    │
@@ -103,7 +106,7 @@ issues without leaving the command line.
 
 ### MCP (for AI Agents)
 
-The server exposes 8 MCP tools and 4 MCP resources via STDIO or HTTP/SSE transport.
+The server exposes 12 MCP tools (8 kanban + 4 memory) and 4 MCP resources via STDIO or HTTP/SSE transport.
 AI agents connect and process issues autonomously.
 
 ---
@@ -153,11 +156,36 @@ new issue's title and description. Relevant learnings are applied automatically.
 
 Over 50 issues, this prevents hours of repeated mistakes — with zero effort from you.
 
-### Three Tiers of Knowledge
+### 4. Persistent Memory (BM25 Search)
+
+Beyond file-based learnings, the agent has a **persistent memory system** backed by
+SQLite FTS5 with BM25 ranking. This provides a different kind of knowledge:
+
+| LEARNINGS.md | Memory System |
+|-------------|---------------|
+| Mistake-driven patterns | Rich contextual knowledge |
+| Keyword-triggered matching | Full-text BM25 search |
+| Git-tracked, human-editable | DB-stored, queryable via MCP |
+| Structured entries (trigger → action) | Free-form (decisions, facts, preferences, events) |
+
+**How they work together in the loop:**
+
+- **Before each issue**: The agent loads LEARNINGS.md for gotcha avoidance AND
+  searches memory (`memory_search`) for relevant context — past decisions, codebase
+  facts, user preferences, architectural patterns.
+- **After each issue**: The agent captures mistake-driven learnings in LEARNINGS.md
+  AND stores broader context (decisions made, facts discovered, preferences noted)
+  via `memory_store`.
+
+The memory system supports 6 categories: `decision`, `fact`, `event`, `preference`,
+`advice`, `general` — each with importance scoring (1-10) for prioritized retrieval.
+
+### Four Tiers of Knowledge
 
 | Tier | File | Scope | How it grows |
 |------|------|-------|-------------|
-| Working memory | `LEARNINGS.md` | Per-project | Agent captures after each issue |
+| Persistent memory | SQLite DB (via MCP) | Per-project | Agent stores context after each issue |
+| Working memory | `LEARNINGS.md` | Per-project | Agent captures mistake-driven patterns |
 | Project conventions | `AGENTS.md` | Per-project | Promoted from LEARNINGS.md (≥3 matches) |
 | Global playbook | `~/.copilot/copilot-instructions.md` | All projects | Cross-project patterns |
 
@@ -201,11 +229,11 @@ The server binary is statically compiled (`CGO_ENABLED=0`) with no dynamic depen
 
 ### Readonly Mode (Default)
 
-By default, the MCP server exposes only **3 safe tools**: `project_list`, `issue_list`,
-`issue_update`. This means AI agents can read issues and update status, but cannot
-create or delete anything.
+By default, the MCP server exposes only **5 safe tools**: `project_list`, `issue_list`,
+`issue_update`, `memory_search`, `memory_list`. This means AI agents can read issues,
+update status, and search memories, but cannot create or delete anything.
 
-To expose all 8 tools (including create/delete):
+To expose all 12 tools (including create/delete for issues and memories):
 
 ```bash
 ./bin/issue-kanban-mcp -readonly=false
@@ -278,6 +306,8 @@ Then tell your AI agent: *"Process all issues in project X"* — it handles the 
 
 ## MCP Tools
 
+### Kanban Tools
+
 | Tool | Parameters | Mode |
 |------|-----------|------|
 | `project_list` | — | readonly |
@@ -288,6 +318,15 @@ Then tell your AI agent: *"Process all issues in project X"* — it handles the 
 | `issue_create` | `project_id`, `title`, `description?`, `priority?` | admin |
 | `issue_delete` | `task_id` | admin |
 | `issue_prioritize` | `task_id` | admin |
+
+### Memory Tools
+
+| Tool | Parameters | Mode |
+|------|-----------|------|
+| `memory_search` | `project_id`, `query`, `category?`, `limit?` | readonly |
+| `memory_list` | `project_id`, `category?`, `limit?` | readonly |
+| `memory_store` | `project_id`, `content`, `category?`, `summary?`, `tags?`, `importance?` | admin |
+| `memory_delete` | `project_id`, `memory_id` | admin |
 
 ## MCP Resources
 
@@ -324,6 +363,15 @@ Then tell your AI agent: *"Process all issues in project X"* — it handles the 
 | DELETE | `/api/issues/{id}` | Delete issue |
 | POST | `/api/issues/{id}/prioritize` | Move to front |
 
+### Memories
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/projects/{id}/memories` | Store memory |
+| GET | `/api/projects/{id}/memories` | List memories (`category?`, `limit?`) |
+| GET | `/api/projects/{id}/memories/search` | Search memories (`q`, `category?`, `limit?`) |
+| DELETE | `/api/projects/{id}/memories/{mid}` | Delete memory |
+
 ---
 
 ## Configuration
@@ -345,17 +393,22 @@ cmd/
 ├── tui/main.go              # Terminal UI
 └── cli/main.go              # Command-line interface
 internal/
-├── api/handlers.go          # REST API (14 endpoints)
+├── api/handlers.go          # REST API (18 endpoints)
 ├── apiclient/client.go      # Shared REST client (TUI & CLI)
 ├── mcp/
 │   ├── server.go            # MCP server setup
-│   ├── tools.go             # 8 MCP tools
+│   ├── tools.go             # 12 MCP tools (8 kanban + 4 memory)
 │   └── resources.go         # 4 MCP resources
+├── memory/
+│   ├── models.go            # Memory data model, categories, DTOs
+│   ├── storage.go           # Storage interface (6 methods)
+│   ├── manager.go           # Business logic (validation, dedup, BM25 search)
+│   └── mock_storage.go      # Mock for unit tests
 ├── queue/
-│   ├── manager.go           # Business logic layer
-│   ├── models.go            # Data models
+│   ├── manager.go           # Kanban business logic layer
+│   ├── models.go            # Project/Issue data models
 │   └── mock_storage.go      # Mock storage for tests
-├── storage/sqlite.go        # SQLite (pure Go, no CGO)
+├── storage/sqlite.go        # SQLite (pure Go, no CGO) — implements both queue + memory storage
 ├── tui/                     # Bubbletea TUI
 └── web/static/              # Embedded SPA
 instructions/
