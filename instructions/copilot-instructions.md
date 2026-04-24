@@ -190,11 +190,11 @@ If the MCP memory tools are available (`memory_search`):
    ```
    🧠 Relevant memories for Issue #<id>:
      [decision] "Chose FTS5 over vector search due to CGO_ENABLED=0 constraint"
-       (importance: 8, from issue #35)
+       (importance: 5, from issue #35)
      [fact] "DeleteProject cascades manually: memories → tasks → queues"
-       (importance: 7, from issue #35)
+       (importance: 4, from issue #35)
    ```
-4. Factor high-importance memories (≥7) into execution plan
+4. Factor high-importance memories (≥4) into execution plan
 5. No results or no memory tools available → proceed normally
 
 > Memory search is additive — it enriches context but never blocks progress.
@@ -620,7 +620,7 @@ persisting in the memory system. Use `memory_store` for:
 **Protocol:**
 1. Review the issue's work for memory-worthy context (not already in LEARNINGS.md)
 2. If candidates exist, store them via `memory_store(project_id, content, category, importance)`
-3. Set importance based on reuse likelihood: 8-10 = architectural, 5-7 = useful context, 1-4 = minor
+3. Set importance based on reuse likelihood: 5 = architectural, 3-4 = useful context, 1-2 = minor
 4. No candidates → skip silently. Not every issue produces memories.
 
 > Memory storage is silent — no `ask_user` needed. The agent stores what's useful,
